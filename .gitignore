@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js build output
+.next/
+out/
+dist/
+build/
+next-env.d.ts
+
+# Environment files — only .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# Test / coverage output
+coverage/
+.vitest/
+
+# Playwright output: traces and screenshots from failed runs, and the reports
+# built from them. Reproducible from a run, so never committed.
+test-results/
+playwright-report/
+blob-report/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Caches
+.eslintcache
+*.tsbuildinfo
+.turbo/
+
+# Claude Code session artifacts (agent worktrees, local settings)
+.claude/
+
+# Local screenshots / browser artifacts
+*.png
+.playwright-mcp/
+
+# Assembled deploy bundle (built artefact)
+.next/deploy-bundle/

@@ -1,0 +1,9 @@
+# pnpm 11 reads settings from here rather than from package.json.
+#
+# Both packages below ship native binaries and need their install scripts to
+# run: `unrs-resolver` backs the ESLint TypeScript import resolver, `sharp`
+# backs Next.js image optimisation. Deciding here keeps installs
+# non-interactive and reproducible.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

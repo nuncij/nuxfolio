@@ -1,0 +1,290 @@
+# Weekly token-list refresh (M2-5(b)).
+#
+# The keyless balance provider probes a fixed list of ERC-20 contracts per chain,
+# committed to the repository because fetching it on the request path would add
+# latency and a failure mode to every portfolio load (ADR-006). A committed list
+# ages: tokens listed after it was generated are simply not seen. The app already
+# says so — it warns once a list passes 60 days — but until this workflow existed,
+# fixing it meant a human remembering to run `pnpm tokens:generate`, so the warning
+# was a reminder rather than a repair.
+#
+# **The routing decision, and it is the whole design.** A regenerated list can be
+# *worse* than the one it replaces: if the upstream response is truncated on the
+# morning the cron fires, the new file carries a fresh `generatedAt` with fewer
+# tokens, and the staleness warning goes quiet exactly when coverage got worse.
+# `pnpm tokens:check` compares the two versions and classifies the result
+# (scripts/tokenListDrift.mjs). That verdict decides what happens next:
+#
+#   - `unchanged` / `changed` — ordinary churn. Committed straight to `main`. Nobody
+#     is asked, because there is nothing to decide.
+#   - `attention` — something the thresholds cannot judge, like a mass removal or a
+#     decimals change. Pushed to a branch and opened as a pull request, where a
+#     person decides. The guard can say "this is unusual"; it cannot say whether 400
+#     absent tokens are real delistings.
+#
+# The first version asked permission for every run, monthly. That was worse on both
+# axes: staler lists *and* more interruptions, most of them rubber-stamps. Routing on
+# the verdict means the lists stay a week fresh and a message only arrives when it
+# carries a decision. The cost is that the guard is now load-bearing — a wrong
+# `changed` verdict lands without review — which is why its thresholds are measured
+# and its bounds are written down in the module rather than left to intuition.
+#
+# **Why `pnpm verify` runs here rather than on the pull request.** Observed on the
+# first real run (2026-08-04, pull request #1): GitHub *does* create a `pull_request`
+# run for a bot-opened pull request, and parks it in `action_required` awaiting manual
+# approval — so `gh pr checks` reports "no checks reported" while a run sits there
+# forever. That is worse than no run at all, because a pending check looks like one
+# that might still pass. So ci.yml cannot be the gate here, and it matters more now
+# that most runs land on `main` unreviewed. The alternative was a personal access
+# token stored as a secret; a long-lived credential with write access to the
+# repository is a worse thing to own than a duplicated step, and running the gate
+# here has the better property anyway — it runs on exactly the tree being pushed.
+#
+# **What happens if this workflow itself stops running.** GitHub disables scheduled
+# workflows in a repository with no activity for 60 days. That failure is silent
+# here, but not in the product: the app's own 60-day warning is what surfaces it, so
+# the warning is not made obsolete by this automation — it becomes the monitor for
+# it. That is the reason not to relax it now that the refresh is automated.
+name: Token lists
+
+on:
+  schedule:
+    # 03:00 UTC on Mondays. Measured churn on 2026-08-04 was 24 tokens added and 5
+    # removed across the five chains in five days — roughly 34 a week, so a weekly run
+    # has real content every time. An earlier comment here claimed a weekly job would
+    # mostly report "nothing changed"; that was asserted without doing the arithmetic,
+    # and the arithmetic says the opposite.
+    - cron: '0 3 * * 1'
+  # Without this the first proof that any of it works is a week away. Also the
+  # answer to "I just bought something and cannot see it".
+  workflow_dispatch:
+
+concurrency:
+  group: token-lists
+  cancel-in-progress: false
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+  # One long-lived branch, so there is at most one open refresh pull request and it
+  # always holds the latest flagged state rather than a queue of overlapping ones.
+  REFRESH_BRANCH: chore/token-lists-refresh
+
+jobs:
+  refresh:
+    name: Regenerate the lists
+    runs-on: ubuntu-latest
+    permissions:
+      # Narrower than it looks: enough to push a commit, open a pull request, and
+      # raise the one deploy-due issue. No `actions: write`, no `packages`, no
+      # `id-token`.
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The one network step in the whole pipeline. Keyless: the CoinGecko
+      # per-platform lists need no credential, which is why there is no secret
+      # configured here (PROVIDERS.md, ADR-019 on what a key would buy).
+      - name: Regenerate token lists
+        run: pnpm tokens:generate
+
+      # Compares the working tree against HEAD and writes the report. Exits 0 even
+      # when it flags something — a finding is data, not a broken build — and emits
+      # the verdict this job routes on.
+      - name: Compare against the committed lists
+        id: drift
+        run: pnpm tokens:check
+
+      - name: Stop if nothing changed at all
+        id: changed
+        run: |
+          if git diff --quiet -- src/config/tokenlists; then
+            echo "The regenerated lists are byte-identical to the committed ones."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The gate, and the only thing standing between a bad upstream day and `main`
+      # now that clean runs self-merge. `verify` is format:check → lint → typecheck →
+      # test → build, and the build parses every list through its zod schema, so a
+      # malformed or truncated-to-empty list fails here. If this fails the job fails
+      # and nothing is pushed.
+      #
+      # The end-to-end suite is deliberately not run: it mocks `/api/portfolio` in the
+      # browser, so it exercises no token list and could only add minutes and flakiness
+      # to a job whose subject it never touches.
+      - name: Verify the regenerated lists
+        if: steps.changed.outputs.any == 'true'
+        run: pnpm verify
+
+      - name: Commit, and route on the verdict
+        if: steps.changed.outputs.any == 'true'
+        id: land
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERDICT: ${{ steps.drift.outputs.verdict }}
+          COMMIT_PATH: ${{ steps.drift.outputs.commit_path }}
+          BODY_PATH: ${{ steps.drift.outputs.body_path }}
+          TITLE_PATH: ${{ steps.drift.outputs.title_path }}
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Only the generated lists. A blanket `git add -A` would sweep up whatever
+          # else a previous step happened to leave in the tree.
+          git add src/config/tokenlists
+          # Subject and full report in one prepared file: `git commit` refuses -F with
+          # -m, and the report belongs in `git log` regardless of how this lands.
+          git commit --file "$COMMIT_PATH"
+
+          if [ "$VERDICT" != "attention" ]; then
+            echo "Verdict '$VERDICT' — landing on main without asking."
+
+            # Never force-push main. If it moved under us, the refresh becomes a pull
+            # request rather than anything clever: the work is preserved and a human
+            # sees it, which is the same failure mode as a flagged run.
+            if git push origin HEAD:main; then
+              echo "outcome=main" >> "$GITHUB_OUTPUT"
+
+              # A flagged pull request left open would still be proposing a list that
+              # a later run has already superseded — and merging it weeks later would
+              # apply stale, suspicious data on top of current main. Close it.
+              OPEN="$(gh pr list --head "$REFRESH_BRANCH" --state open --json number --jq '.[0].number // empty')"
+              if [ -n "$OPEN" ]; then
+                gh pr close "$OPEN" --delete-branch --comment \
+                  "Superseded. A later refresh passed the drift guard and landed on \`main\` directly, so this branch now proposes older lists — and the finding that put it here did not recur."
+                echo "Closed superseded #$OPEN"
+              fi
+              exit 0
+            fi
+
+            echo "Could not fast-forward main; falling back to a pull request."
+            echo "outcome=fallback" >> "$GITHUB_OUTPUT"
+          else
+            echo "Verdict 'attention' — this one needs a person."
+            echo "outcome=review" >> "$GITHUB_OUTPUT"
+          fi
+
+          git push --force origin "HEAD:refs/heads/$REFRESH_BRANCH"
+
+          TITLE="$(cat "$TITLE_PATH")"
+
+          # The absence of check runs on this pull request would otherwise read as
+          # "untested", so the body says where the gate ran.
+          {
+            echo
+            echo '---'
+            echo
+            echo "\`pnpm verify\` passed on this exact tree inside the refresh job" \
+                 "([run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}))."
+            echo "A branch pushed by \`GITHUB_TOKEN\` does not get a check report without" \
+                 "a human approving the run, so treat any absent or pending check below" \
+                 "as expected."
+          } >> "$BODY_PATH"
+
+          EXISTING="$(gh pr list --head "$REFRESH_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body-file "$BODY_PATH"
+            echo "Updated #$EXISTING"
+            exit 0
+          fi
+
+          # Creating a pull request with `GITHUB_TOKEN` requires Settings → Actions →
+          # General → "Allow GitHub Actions to create and approve pull requests",
+          # which is off by default and had to be enabled here on 2026-08-04. Naming
+          # the setting beats making whoever reads the log hunt for it.
+          if ! gh pr create --base main --head "$REFRESH_BRANCH" --title "$TITLE" --body-file "$BODY_PATH"; then
+            {
+              echo "### Could not open the pull request"
+              echo
+              echo "The refresh succeeded and \`$REFRESH_BRANCH\` is pushed."
+              echo
+              echo "If the error above is about permission, enable **Settings → Actions →"
+              echo "General → Allow GitHub Actions to create and approve pull requests**"
+              echo "and re-run this workflow. Or open it by hand:"
+              echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${REFRESH_BRANCH}?expand=1"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      # The refresh keeps the *repository* current. It cannot keep the *running app*
+      # current — the lists are compiled into the build, the build cannot run on the
+      # target (3.7 GB, no swap, other services), and the target is on a tailnet this
+      # runner is not. That gap was missed when M2-5(b) shipped and the debt was
+      # called closed; this is the honest version, which makes the shortfall specific
+      # instead of leaving it to be noticed.
+      - name: How far behind is the live site
+        if: steps.changed.outputs.any == 'true'
+        id: lag
+        run: |
+          # The `deployed` tag is pushed by scripts/deploy.sh; a shallow clone does
+          # not fetch tags, and its absence is a legitimate answer, not an error.
+          git fetch --quiet --depth 1 origin 'refs/tags/deployed:refs/tags/deployed' 2>/dev/null || true
+          pnpm deploy:lag
+
+      # One long-lived issue, opened only when the shortfall is worth interrupting
+      # someone about and closed by the next deploy. A weekly "there is something to
+      # ship" notice would be ignored inside a month, which is how the previous
+      # always-ask design failed.
+      - name: Raise or clear the deploy-due issue
+        if: steps.changed.outputs.any == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAG_STATUS: ${{ steps.lag.outputs.status }}
+        run: |
+          set -euo pipefail
+          TITLE='Live site is behind the token lists on main'
+          OPEN="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')"
+          BODY="${RUNNER_TEMP}/deploy-lag.md"
+
+          if [ "$LAG_STATUS" = "behind" ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue edit "$OPEN" --body-file "$BODY"
+              echo "Updated #$OPEN"
+            else
+              gh issue create --title "$TITLE" --body-file "$BODY"
+            fi
+          elif [ -n "$OPEN" ]; then
+            # Reached when a deploy happened but did not close the issue itself —
+            # no `gh` on that machine, or no network at the time.
+            gh issue close "$OPEN" --comment "No longer behind — the live site's lists now read as \`$LAG_STATUS\`. Closing."
+            echo "Closed #$OPEN"
+          else
+            echo "Nothing to raise: status '$LAG_STATUS'."
+          fi
+
+      # Most runs now tell nobody anything, by design. The summary is the record of
+      # what a silent run actually did.
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Token list refresh"
+            echo
+            echo "- Lists changed: \`${{ steps.changed.outputs.any || 'unknown' }}\`"
+            echo "- Drift verdict: \`${{ steps.drift.outputs.verdict || 'not reached' }}\`"
+            echo "- Outcome: \`${{ steps.land.outputs.outcome || 'nothing to land' }}\`"
+            echo "- Live site: \`${{ steps.lag.outputs.status || 'not checked' }}\`"
+            echo
+            case "${{ steps.land.outputs.outcome }}" in
+              main)     echo "Committed to \`main\` without review — the guard found nothing to decide." ;;
+              review)   echo "Opened for review: the guard found something its thresholds cannot judge." ;;
+              fallback) echo "Opened for review because \`main\` moved during the run, not because of a finding." ;;
+              *)        echo "No commit was made." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"

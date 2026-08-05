@@ -1,0 +1,183 @@
+# Continuous integration.
+#
+# The workflow mirrors what a developer runs locally, deliberately: `pnpm verify`
+# is the single gate (format:check → lint → typecheck → test → build), so CI
+# cannot pass something a local verify would reject, or the reverse.
+#
+# No secrets are configured, and none are needed. The unit suite is network-free
+# by construction — every provider adapter takes its `fetch` from an injected
+# context and each test supplies its own stub — and the end-to-end suite mocks
+# `/api/portfolio` inside the browser. There is no RPC endpoint, API key or live
+# service anywhere in this pipeline. A test that needed one would be the wrong
+# test.
+# Verified green on the first real run (2026-07-31). Action majors are v5: the
+# v4 line targets Node 20, which GitHub's runners now force onto Node 24 and
+# warn about, so v4 is on a path to failing rather than merely being old.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Superseded runs tell you about code nobody is looking at any more.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Corepack must not stop to ask whether it may fetch the pinned pnpm.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
+# Read-only for every job unless a job says otherwise. Review round 10 (F-02): the
+# verify job briefly held `contents: write` while it ran checkout, install and tests
+# — code that a same-repository pull request controls — with checkout's persisted
+# credential in the workspace. Tests never need a writable token; publishing does,
+# and publishing now happens in its own job that runs no project code at all.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (format, lint, types, unit tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Corepack activates the exact pnpm from package.json's `packageManager`
+      # field, so CI resolves dependencies with the same version a developer
+      # does. It runs before setup-node because the pnpm cache lookup below
+      # needs a working `pnpm` binary.
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify
+
+      # `pnpm verify` ends in `pnpm build`, so the standalone output is already
+      # here. The bundle is packaged now — in the job that built it — but handed to
+      # a separate job to publish, so the artifact this job produces is exactly the
+      # artifact that ships and no writable credential ever shares a workspace with
+      # project code. Only on a push to main: a pull request's build is not a thing
+      # to deploy.
+      - name: Package the deployable bundle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nuncij/nuxfolio'
+        run: |
+          set -euo pipefail
+          bash scripts/assemble-bundle.sh .next/deploy-bundle
+          # Deterministic-ish tar: sorted names and a fixed mtime, so an unchanged
+          # build produces an unchanged checksum and the target skips the download.
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            -czf nuxfolio-bundle.tar.gz -C .next/deploy-bundle .
+
+      - name: Hand the bundle to the publish job
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nuncij/nuxfolio'
+        uses: actions/upload-artifact@v5
+        with:
+          name: deploy-bundle
+          path: nuxfolio-bundle.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  e2e:
+    name: End-to-end smoke tests
+    runs-on: ubuntu-latest
+    # Independent of `verify` on purpose: a lint failure should not hide a
+    # broken wiring path, and the two jobs together are still one round trip.
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Chromium only, matching playwright.config.ts; `--with-deps` adds the
+      # system libraries a bare runner lacks. Browsers are not downloaded at
+      # install time, so this step is what makes the suite runnable.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: pnpm test:e2e
+
+      # Traces are the only way to diagnose a wiring failure that reproduces on
+      # a runner and not locally.
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # The only job with a writable token, and it runs no project code: no checkout, no
+  # install — it downloads the artifact the verify job built and uploads it to the
+  # rolling release. `needs` both test jobs, because the target installs whatever is
+  # published: round 10 (F-09) pointed out the old shape could publish a build whose
+  # end-to-end suite was still failing.
+  #
+  # If a newer push cancels this run mid-upload (`cancel-in-progress`), the asset
+  # order below keeps the target safe: the tarball goes first and the checksum —
+  # the trigger the target polls — goes last, so an interrupted publish leaves the
+  # old checksum in place and the target simply stays on the build it has.
+  publish:
+    name: Publish the build the target pulls
+    # Guarded by repository, not just branch: this job exists to feed one specific
+    # self-updating target. In a fork or the published mirror there is nothing to
+    # feed, and an unguarded run would litter releases with a bundle nobody pulls.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nuncij/nuxfolio'
+    needs: [verify, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: deploy-bundle
+
+      - name: Upload to the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha256sum nuxfolio-bundle.tar.gz > nuxfolio-bundle.sha256
+
+          # One rolling prerelease rather than one per commit: this is the current
+          # deployable build, not a version history. `--clobber` replaces the
+          # assets in place, so exactly one copy is ever stored.
+          gh release view build --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create build --repo "$GITHUB_REPOSITORY" \
+              --prerelease \
+              --title 'Current build' \
+              --notes 'Rolling build of main, pulled by the target'"'"'s self-update timer. Not a release; see ADR-018.'
+
+          # Tarball first, checksum last — the checksum is what the target polls,
+          # so it must never point at an asset that is not fully uploaded yet.
+          gh release upload build nuxfolio-bundle.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload build nuxfolio-bundle.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+
+          {
+            echo "### Published"
+            echo
+            echo "- commit \`${GITHUB_SHA:0:7}\`"
+            echo "- $(du -h nuxfolio-bundle.tar.gz | cut -f1), sha256 \`$(cut -c1-12 < nuxfolio-bundle.sha256)\`"
+            echo
+            echo "The target's timer picks this up within 15 minutes."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+pnpm-lock.yaml
+next-env.d.ts
+
+# Generated data file — formatting is owned by scripts/generate-token-list.mjs
+src/config/tokenlists/
+
+# Claude Code session artifacts (agent worktrees)
+.claude/
