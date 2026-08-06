@@ -10,6 +10,37 @@ picture stated rather than hidden.
 There is no wallet connection, no signing path, and no code in this repository
 that could move funds. Nuxfolio never asks for a seed phrase or private key.
 
+![Nuxfolio showing a wallet across five networks](docs/screenshots/portfolio.png)
+
+<sub>A real wallet (`vitalik.eth`), read with no API key at all. Five networks,
+one total, and the caveats folded into a line that still says how many there are.</sub>
+
+### The part most trackers leave out
+
+Every portfolio tracker can show you a number. The harder problem is being straight
+about the number's edges — what was not priced, not covered, or out of date. Nuxfolio
+treats that as a feature rather than an embarrassment, so the gaps are one click away
+instead of absent:
+
+![The expanded panel listing what the view does not include](docs/screenshots/caveats.png)
+
+<sub>Four distinct admissions: contracts that would not decode, tokens outside the
+bundled list, assets with no price at all, and prices older than expected. Each is a
+different problem, so each is reported as a different thing.</sub>
+
+<details>
+<summary>Light theme, and on a phone</summary>
+
+![Nuxfolio in its light theme](docs/screenshots/portfolio-light.png)
+
+![Nuxfolio at 390px wide](docs/screenshots/mobile.png)
+
+<sub>Both themes meet WCAG AA on every text pair, enforced by a test that reads the
+real stylesheet rather than trusting the palette. The narrow layout is covered by an
+end-to-end test asserting the page never scrolls sideways at 390px.</sub>
+
+</details>
+
 ---
 
 ## Quick start

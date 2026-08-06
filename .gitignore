@@ -44,8 +44,12 @@ Thumbs.db
 # Claude Code session artifacts (agent worktrees, local settings)
 .claude/
 
-# Local screenshots / browser artifacts
+# Local screenshots / browser artifacts — a stray debugging capture should never
+# land in a commit. The README's images are the deliberate exception: they are
+# committed on purpose, and without this negation they are silently dropped and
+# the README renders four broken images on GitHub.
 *.png
+!docs/screenshots/*.png
 .playwright-mcp/
 
 # Assembled deploy bundle (built artefact)
