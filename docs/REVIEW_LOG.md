@@ -583,3 +583,45 @@ tests go red. That is the same move as measuring contrast instead of judging col
 eye, applied to a guarantee rather than a value — and it is now the standard for
 security work here, because a test that cannot fail proves nothing about a property it
 claims to protect.
+
+---
+
+## Round 12 — the M5 plan, before implementation
+
+**What was reviewed.** `docs/M5_PLAN.md`, written the same morning and reviewed before
+a line of code existed. The subject is protocol accounting — reading Aave v3 debt and
+health factors, the last unmet item in the original brief.
+
+**VERDICT: CHANGES REQUIRED — 9 findings, two of them critical**, and both criticals
+would have produced numbers that were simply wrong on screen.
+
+| ID   | Severity | Finding                                                                                                                                                                                                   | Disposition                                                                                                                                                                                                                                                    |
+| ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-01 | critical | The plan said the health factor is ray-scaled (1e27). It is **18 decimals**. A real `1.04` would have rendered as `0.00000000104`.                                                                        | **Adopted.** And the plan contained its own disproof: the probe printed `1.157e+59` for the no-debt sentinel, which is uint256 max ÷ 1e18. Divided by 1e27 it would be `1.157e+50`. The measurement was in the document, three sections above the wrong claim. |
+| F-02 | critical | `netValueUsd = totalValueUsd − borrowedValueUsd` subtracts a liability from a total that never contained its matching asset, because v3 receipt tokens are unlisted and therefore invisible to the total. | **Adopted — the whole section was replaced.** Worked through: a wallet supplying $100k and borrowing $40k it still holds would report a net of **$0** against a true $60k; if the borrowed funds left, **−$40k**. v1 now ships **no net total at all**.        |
+| F-03 | high     | `totalCollateralBase` is collateral, not supplies — a supply-with-collateral-off position is invisible — so calling the field "supplied" is a false claim.                                                | **Adopted.** Renamed `collateralValueUsd`, and the milestone's promise narrowed from "your Aave positions" to borrower risk.                                                                                                                                   |
+| F-04 | high     | Ethereum runs Core, Prime and EtherFi markets. Keying an account by chain + protocol reads one and silently misses the others.                                                                            | **Adopted.** `marketId`/`marketName`, a bounded configured market list. Rejected the weekly-refresh idea for the address registry: proxy addresses are stable, and a CI sanity check is the proportionate version.                                             |
+| F-05 | high     | Shipping `positions: []` asserts "checked and found none" when nothing looked — the exact substitution this codebase refuses.                                                                             | **Adopted.** The field is absent in v1 rather than empty, plus a per-market `status` so a failed read and a genuine zero cannot collapse.                                                                                                                      |
+| F-06 | high     | `sumPortfolioTotals` drops null subtotals before summing, so a failed Aave read would shrink a complete-looking debt figure across both aggregation axes.                                                 | **Adopted.** Debt aggregates only with checked/failed/total counts and a "so far" label; health factors are not additive and stay per market.                                                                                                                  |
+| F-07 | medium   | The double-count measurement covered only the keyless path. Under Alchemy, an indexer enumerates unlisted aTokens, so collateral could appear twice.                                                      | **Adopted as a constraint.** v1 survives because Aave's figures are explicitly non-additive and never summed into the wallet total; reconciliation is M5-2's problem, when they are combined. Both provider modes get a test.                                  |
+| F-08 | medium   | §5a measured one market at one moment; Aave's oracle permits a non-USD base, which would make the `…Usd` names and 8-decimal scaling false elsewhere.                                                     | **Adopted.** Each market is probed for base currency and unit before being enabled; a non-USD market is excluded rather than guessed at.                                                                                                                       |
+| F-09 | medium   | "State the health factor, never interpret it" leaves a reader unable to tell whether 1.04 is a percentage or whether higher is better.                                                                    | **Adopted, and it sharpened a rule.** A _definition_ is not advice: "below 1 becomes eligible for liquidation; higher is further from that threshold" says what the number is. "You should repay" says what to do, and stays out.                              |
+
+### What this round is evidence of
+
+The plan opened by citing the process that "caught a plan claim that was factually wrong
+about this codebase" in rounds 7 and 8 — and then contained two of its own, one of which
+its **own measurement disproved three sections earlier**. The probe output and the wrong
+claim sat in the same document, and writing one did not cause me to check the other.
+
+So the lesson is not "measure more". It is that a measurement only helps if something
+reconciles it against the claims elsewhere in the document. Round 8 said the most
+dangerous sentence in a plan is the confident quantitative one; round 12 adds that the
+second most dangerous is the one contradicted by your own evidence, because it reads as
+supported.
+
+F-02 is the one worth remembering, though. It was not a factual error — every input was
+right. The mistake was arithmetic performed across two different scopes: subtracting a
+liability from a total whose matching asset was, by this plan's own design, invisible. No
+amount of measuring would have caught it. Only working an example through end to end did,
+and that is now a step rather than an instinct.

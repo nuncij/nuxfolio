@@ -5,7 +5,7 @@ Written 2026-07-30, last revised 2026-07-31. Companion documents:
 `IMPLEMENTATION_PLAN.md` (what was built and why), `M2_PLAN.md` (milestone 2's
 per-item specifications), `M2-2_PLAN.md` (the price cross-check, as specified and
 as delivered), `DECISIONS.md` (ADR-001…025), `PROVIDERS.md`, `REVIEW_LOG.md`
-(eleven independent review rounds).
+(twelve independent review rounds).
 
 ---
 
@@ -57,7 +57,7 @@ GitHub.
 | E2E against a production build instead of `next dev`           | ✅ done (ADR-017) |
 
 Totals now: **851 unit tests across 40 files + 31 E2E scenarios**, `pnpm verify`
-green. 25 ADRs, 11 independent review rounds.
+green. 25 ADRs, 12 independent review rounds.
 
 **Working today, with no API key and no configuration:**
 
