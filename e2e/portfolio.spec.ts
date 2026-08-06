@@ -65,9 +65,36 @@ test('takes an address from the landing page through to a rendered portfolio', a
   await expect(assets.getByText('Copied symbol')).toBeVisible();
 
   const limitations = page.getByRole('region', { name: 'Data limitations' });
+  await limitations.getByRole('group').click();
   // Five identical coverage warnings are combined into one line naming the total.
   await expect(limitations).toContainText('12,346 tokens across');
   await expect(limitations).toContainText('Ethereum Mainnet: 1 asset looks like spam');
+});
+
+test('folds the caveats away without hiding that there are any', async ({ page }) => {
+  // A keyless load carries several of these on every request. Left expanded they
+  // become wallpaper — the failure mode where an honest warning stops being read
+  // because it is always there. Collapsed, the count still has to survive: the
+  // difference between "there are caveats" and "there are five" is the whole claim.
+  await mockPortfolioApi(page, crossCheckedPlan());
+
+  await page.goto(`/portfolio/${E2E_ADDRESS}?chainId=1`);
+
+  const limitations = page.getByRole('region', { name: 'Data limitations' });
+  const disclosure = limitations.getByRole('group');
+
+  await expect(limitations).toContainText('What this view does not include');
+  await expect(limitations).toContainText('note');
+  // Collapsed by default, so the detail is present in the DOM but not readable.
+  await expect(disclosure).not.toHaveAttribute('open', /.*/);
+  await expect(limitations.getByRole('listitem').first()).toBeHidden();
+
+  await disclosure.click();
+  await expect(limitations.getByRole('listitem').first()).toBeVisible();
+
+  // The landmark survives the change: `<details>` alone carries role `group`, not
+  // `region`, so a bare disclosure would have removed a navigation target.
+  await expect(limitations).toBeVisible();
 });
 
 test('names a network it could not read instead of dropping it silently', async ({ page }) => {
@@ -185,6 +212,7 @@ test('marks a disputed price, keeps it in the total, and credits the second sour
   await expect(assets.getByLabel(/A second source says/)).toHaveCount(1);
 
   const limitations = page.getByRole('region', { name: 'Data limitations' });
+  await limitations.getByRole('group').click();
   await expect(limitations).toContainText('1 price could not be confirmed by a second source');
   await expect(limitations).toContainText('The widest gap is USDC');
 
@@ -232,30 +260,6 @@ test('credits no second source when no price was cross-checked', async ({ page }
   // The primary source is still named, so the absence above is about the verifier
   // rather than attribution being broken altogether.
   await expect(page.getByRole('link', { name: 'DefiLlama' })).toBeVisible();
-});
-
-test('states what the portfolio is, as facts with a named denominator', async ({ page }) => {
-  await mockPortfolioApi(page, insightfulPlan());
-
-  await page.goto(`/portfolio/${E2E_ADDRESS}?chainId=1`);
-
-  const panel = page.getByRole('region', { name: 'What this portfolio is' });
-  // 4,000 of 10,000, and said to be a share of the *priced* total rather than of
-  // "your portfolio" — unpriced and excluded assets are outside it.
-  await expect(panel).toContainText('40.00%');
-  await expect(panel).toContainText('of the priced total');
-
-  // Classification is by contract address, and it says "designed to track" rather
-  // than "tracks": an address proves the instrument, not that it holds its peg.
-  await expect(panel).toContainText('designed to track');
-  await expect(panel).toContainText('ether');
-  await expect(panel).toContainText('bitcoin');
-  await expect(panel).toContainText('the US dollar');
-
-  // Facts only. No advice, however tempting a 40% concentration makes it.
-  await expect(panel).not.toContainText('should');
-  await expect(panel).not.toContainText('risk');
-  await expect(panel).not.toContainText('too much');
 });
 
 test('shows a price change, and refuses to round a real one down to zero', async ({ page }) => {

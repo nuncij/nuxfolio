@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 
 import type { PublicChainInfo } from '@/config/chains';
 import { shortenAddress, type WalletAddress } from '@/domain/address';
-import { computeInsights } from '@/domain/insights';
 import { flattenAggregateAssets, withCrossChainShares } from '@/domain/normalize';
 import {
   ALL_CHAINS,
@@ -44,7 +43,6 @@ import {
 import { CopyAddressButton } from './CopyAddressButton';
 import { DisplayProvider } from './DisplayProvider';
 import { SaveWalletButton } from './SaveWalletButton';
-import { InsightsPanel } from './InsightsPanel';
 import { ChainBreakdown } from './ChainBreakdown';
 import { ChainSelector } from './ChainSelector';
 import { PortfolioSkeleton } from './PortfolioSkeleton';
@@ -314,14 +312,6 @@ function PortfolioBody({
     return (
       <>
         <PortfolioSummary portfolio={data.portfolio} />
-        <InsightsPanel
-          insights={computeInsights({
-            assets: data.portfolio.assets,
-            // One network, so there is nothing cross-network to be partial about.
-            networksComplete: true,
-            includeNetworks: false,
-          })}
-        />
         <WarningPanel warnings={data.portfolio.warnings} />
         <AssetTable
           assets={data.portfolio.assets}
@@ -347,15 +337,6 @@ function PortfolioBody({
         <PartialViewNotice progress={shownNetworks} />
       ) : null}
       <PortfolioSummary aggregate={aggregate} progress={shownNetworks} />
-      <InsightsPanel
-        insights={computeInsights({
-          assets,
-          // A cross-network claim from a partial aggregate would say "100% sits on
-          // Ethereum" while four networks were still loading (ADR-015).
-          networksComplete: shownNetworks === null || shownNetworks.complete,
-          includeNetworks: true,
-        })}
-      />
       <ChainBreakdown aggregate={aggregate} ensName={ensName} />
       <WarningPanel warnings={collectAggregateWarnings(aggregate)} />
       <AssetTable assets={assets} explorerUrl={null} showChain initialSort={initialSort} />

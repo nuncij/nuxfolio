@@ -132,11 +132,6 @@ what is known:
 - A **euro figure is a conversion of an estimate at a dated rate**, and says so.
   The ECB publishes on business days, so the rate can be several days old; the page
   names the rate and its date rather than implying a live quote (ADR-021).
-- The insights panel states **facts with a named denominator** — shares of the
-  priced total, never "of your portfolio" — classifies exposure by contract address
-  rather than by symbol (a symbol is attacker-controlled), says "designed to track"
-  rather than "tracks", and goes quiet about cross-network facts until every
-  network has answered (ADR-022).
 - When a second price source is configured, a **disagreement is reported, not
   resolved**. Nuxfolio does not know which source is right, so the primary price
   stays in the total, the row is marked, and both figures are shown. The summary

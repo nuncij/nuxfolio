@@ -56,7 +56,7 @@ GitHub.
 | Palette contrast guard — parses `globals.css`, asserts WCAG AA | ✅ done           |
 | E2E against a production build instead of `next dev`           | ✅ done (ADR-017) |
 
-Totals now: **873 unit tests across 41 files + 31 E2E scenarios**, `pnpm verify`
+Totals now: **851 unit tests across 40 files + 31 E2E scenarios**, `pnpm verify`
 green. 25 ADRs, 11 independent review rounds.
 
 **Working today, with no API key and no configuration:**
@@ -97,7 +97,7 @@ the agreement, not the balance, is the claim.
 7 agreed, the widest gap 0.50 % on syrupUSDC. Total unaffected. 8 requests for a
 full five-network load.
 
-**Quality state:** 873 tests across 41 files plus 31 end-to-end scenarios;
+**Quality state:** 851 tests across 40 files plus 31 end-to-end scenarios;
 format, lint, type check and production build all pass (`pnpm verify`; E2E runs
 separately as `pnpm test:e2e`). Seven rounds of independent Codex review, 62 findings
 in total: 58 adopted at least in part, six rejected with a recorded reason, plus
@@ -192,7 +192,8 @@ live site.
 Goal: the features that make people return, built deliberately _without_
 persistence (ADR-002 holds until something genuinely needs a server-side store).
 
-**Status: complete.** M3-3 (insights panel), M3-4 (24 h / 7 d change), M3-5
+**Status: complete.** M3-3 (insights panel — shipped, then **withdrawn** on
+2026-08-06 as unwanted; see ADR-022's addendum), M3-4 (24 h / 7 d change), M3-5
 (EUR display) and M3-1 (saved wallets) shipped 2026-08-03, specified in `M3_PLAN.md`
 `M3-1_PLAN.md` and `M3-2_PLAN.md`, each reviewed before implementation
 (`REVIEW_LOG.md` rounds 6, 7 and 8). M3-6 shipped 2026-08-04.
@@ -206,18 +207,19 @@ every interactive element there is a real `<button>` with `aria-sort`. Rather th
 invent work to close the line item, that is now asserted by a test, because an
 untested "it already works" is only a claim.
 
-| #    | Item                                                                                                                                                                                                                                                                                                                                                  | Effort | Notes                                                                                                 |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| M3-1 | **Watchlist, local-first.** Save/label addresses in `localStorage`; landing page lists them with cached last-seen totals. No accounts, no server state, nothing to leak — consistent with the privacy posture. Sync across devices is explicitly deferred (that is the account decision, Part 4).                                                     | M      |                                                                                                       |
-| M3-2 | **Multi-wallet bundles.** `/bundle/0xA,0xB,0xC` — aggregate several addresses the same way chains are aggregated (the `AggregatePortfolio` shape generalises; a bundle is a second aggregation axis). Pure computation, shareable as a URL, no storage. Cap the count (~10) to bound fan-out.                                                         | M–L    | The aggregation layer was built for exactly this kind of reuse.                                       |
-| M3-3 | **Rules-based insights panel.** Concentration ("one asset is 73 % of the portfolio"), stablecoin share, unpriced share, bridged-vs-native exposure — all computable _today_ from data already in `Portfolio`, no AI involved. Ships the "where are the risks" promise of the kickoff years before Phase 5, with the same honesty framing as warnings. | M      | High value/effort ratio; also the natural substrate the later AI layer explains, rather than invents. |
-| M3-4 | **24 h / 7 d price change column.** DefiLlama has historical price endpoints (keyless). Adds the one number everyone looks for; flagged quotes get no change figure rather than a fabricated one.                                                                                                                                                     | S–M    |                                                                                                       |
-| M3-5 | **Display currency (EUR first).** Convert at render time from a single USD→EUR rate (ECB reference rate, cached daily), clearly labelled as converted. All arithmetic stays USD internally.                                                                                                                                                           | S–M    | Owner is EU-based; likely wanted early.                                                               |
-| M3-6 | **Small UX debt.** Copy-address button, sort state in the URL, per-chain deep links from the breakdown cards, keyboard navigation in the table.                                                                                                                                                                                                       | S      | Batch of small items.                                                                                 |
+| #    | Item                                                                                                                                                                                                                                                                                                                                                                                                             | Effort | Notes                                                                                                 |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| M3-1 | **Watchlist, local-first.** Save/label addresses in `localStorage`; landing page lists them with cached last-seen totals. No accounts, no server state, nothing to leak — consistent with the privacy posture. Sync across devices is explicitly deferred (that is the account decision, Part 4).                                                                                                                | M      |                                                                                                       |
+| M3-2 | **Multi-wallet bundles.** `/bundle/0xA,0xB,0xC` — aggregate several addresses the same way chains are aggregated (the `AggregatePortfolio` shape generalises; a bundle is a second aggregation axis). Pure computation, shareable as a URL, no storage. Cap the count (~10) to bound fan-out.                                                                                                                    | M–L    | The aggregation layer was built for exactly this kind of reuse.                                       |
+| M3-3 | ~~**Rules-based insights panel.**~~ _Built, then withdrawn 2026-08-06 (ADR-022 addendum)._ Concentration ("one asset is 73 % of the portfolio"), stablecoin share, unpriced share, bridged-vs-native exposure — all computable _today_ from data already in `Portfolio`, no AI involved. Ships the "where are the risks" promise of the kickoff years before Phase 5, with the same honesty framing as warnings. | M      | High value/effort ratio; also the natural substrate the later AI layer explains, rather than invents. |
+| M3-4 | **24 h / 7 d price change column.** DefiLlama has historical price endpoints (keyless). Adds the one number everyone looks for; flagged quotes get no change figure rather than a fabricated one.                                                                                                                                                                                                                | S–M    |                                                                                                       |
+| M3-5 | **Display currency (EUR first).** Convert at render time from a single USD→EUR rate (ECB reference rate, cached daily), clearly labelled as converted. All arithmetic stays USD internally.                                                                                                                                                                                                                      | S–M    | Owner is EU-based; likely wanted early.                                                               |
+| M3-6 | **Small UX debt.** Copy-address button, sort state in the URL, per-chain deep links from the breakdown cards, keyboard navigation in the table.                                                                                                                                                                                                                                                                  | S      | Batch of small items.                                                                                 |
 
 **Exit criteria:** a returning user lands on their saved wallets in one click;
-a bundle URL can be shared; the insights panel states the top three facts about
-any portfolio without a single API key.
+a bundle URL can be shared. The third criterion — the insights panel stating the
+top three facts about any portfolio — was met and then removed at the owner's
+request, which is the more useful thing to record than a tick.
 
 ### Milestone 4 — History (persistence enters)
 
@@ -321,7 +323,8 @@ reasoning is not lost.
 ## Part 5 — Recommended next step
 
 Milestone 2 is finished, and three of milestone 3's six items shipped on
-2026-08-03: the insights panel, the 24 h / 7 d change column and the euro display.
+2026-08-03: the insights panel (since withdrawn), the 24 h / 7 d change column and
+the euro display.
 All three are keyless.
 
 **Milestones 2 and 3 are both complete**, M2-5(b) having closed the last of milestone

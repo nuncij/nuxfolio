@@ -18,7 +18,6 @@ import {
 } from '@/domain/bundle';
 import { BUNDLE_MAX_MEMBERS, type BundleRequest } from '@/domain/bundleRequest';
 import { DEFAULT_SORT, type AssetSort } from '@/domain/assetSort';
-import { computeInsights } from '@/domain/insights';
 import { flattenAggregateAssets, withCrossChainShares } from '@/domain/normalize';
 import { portfolioPath } from '@/domain/portfolioPath';
 import type { PublicChainInfo } from '@/config/chains';
@@ -34,7 +33,6 @@ import {
   subscribeToCurrency,
 } from './CurrencyToggle';
 import { DisplayProvider, useMoney } from './DisplayProvider';
-import { InsightsPanel } from './InsightsPanel';
 import { PortfolioSkeleton } from './PortfolioSkeleton';
 import { WarningPanel } from './WarningPanel';
 
@@ -176,15 +174,6 @@ export function BundleView({
               progress={progress}
               conversion={conversionNote({ currency, fxRate })}
               fxUnavailable={!canShowEur(fxRate) && progress.readable > 1}
-            />
-            <InsightsPanel
-              insights={computeInsights({
-                assets,
-                // Every cross-cutting fact is wrong on a partial bundle, not just the
-                // network slice — so nothing is stated until all members settle.
-                networksComplete: progress.complete,
-                includeNetworks: progress.complete,
-              })}
             />
             <BundleBreakdown state={state} chains={chains} />
             <WarningPanel warnings={selectBundleWarnings(state)} />

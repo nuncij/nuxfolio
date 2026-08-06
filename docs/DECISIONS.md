@@ -1191,6 +1191,29 @@ layering. A portfolio with fewer than two priced holdings, or none, shows no pan
 rather than a padded one. The registry is maintenance — 20 entries today, and every
 addition is a decision with a date rather than a guess.
 
+### Addendum, 2026-08-06 — withdrawn
+
+The insights panel is removed, at the owner's request: "remove this is useless."
+
+The reasoning above still holds on its own terms — the thirds split really was
+invisible when scanning rows, and the design decisions (facts not advice,
+classification by contract address, silence when the aggregate is partial) were
+right for what it was trying to be. What it got wrong is upstream of all of that:
+the panel answered a question the owner was not asking. A correct answer to the
+wrong question is still the wrong feature, and it cost 613 lines across a domain
+module, its tests and a component.
+
+Deleted rather than hidden. A feature no view renders is dead code that still has to
+compile, still has to be understood by the next reader, and still shows up in every
+grep — a worse state than either keeping it or removing it. Git history holds it if
+it is ever wanted back.
+
+**What this ADR is now evidence of.** Every earlier reversal here was caught by a
+measurement or a review. This one could only be caught by the person who uses the
+thing. Reviews check whether something is built correctly; only the owner can say
+whether it should exist. Worth remembering the next time a feature is justified by
+how interesting it is to build.
+
 ---
 
 ## ADR-023 — Browser-local preferences are not server persistence
