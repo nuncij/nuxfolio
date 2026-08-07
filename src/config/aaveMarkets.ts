@@ -38,7 +38,22 @@ export type AaveMarket = {
    * 2026-08-06.
    */
   readonly baseCurrencyDecimals: number;
-  /** When the address above was last verified against a live endpoint. */
+  /**
+   * The market's `PoolAddressesProvider`, derived from the pool itself rather than
+   * copied from a deployment list, and the `UiPoolDataProvider` that answers
+   * `getUserReservesData` for it.
+   *
+   * **Optional, and its absence is meaningful.** A market without a verified pair
+   * still reports account-level totals and a health factor (M5-1); it simply cannot
+   * report which assets those are made of. Two of the seven markets are in that
+   * state — the provider addresses this project had for them did not answer, and a
+   * guessed address that silently decodes to nonsense is worse than a stated gap.
+   */
+  readonly detail?: {
+    readonly addressesProvider: WalletAddress;
+    readonly uiPoolDataProvider: WalletAddress;
+  };
+  /** When the addresses above were last verified against a live endpoint. */
   readonly verifiedOn: string;
 };
 
@@ -49,6 +64,10 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   // borrows on Prime or EtherFi as debt-free.
   {
     marketId: '1:core',
+    detail: {
+      addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e',
+      uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
+    },
     name: 'Aave v3 Core',
     chainId: 1,
     poolAddress: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
@@ -57,6 +76,10 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '1:prime',
+    detail: {
+      addressesProvider: '0xcfBf336fe147D643B9Cb705648500e101504B16d',
+      uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
+    },
     name: 'Aave v3 Prime',
     chainId: 1,
     poolAddress: '0x4e033931ad43597d96D6bcc25c280717730B58B1',
@@ -65,6 +88,10 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '1:etherfi',
+    detail: {
+      addressesProvider: '0xeBa440B438Ad808101d1c451C1C5322c90BEFCdA',
+      uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
+    },
     name: 'Aave v3 EtherFi',
     chainId: 1,
     poolAddress: '0x0AA97c284e98396202b6A04024F5E2c65026F3c0',
@@ -73,6 +100,10 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '8453:base',
+    detail: {
+      addressesProvider: '0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D',
+      uiPoolDataProvider: '0x68100bD5345eA474D93577127C11F39FF8463e93',
+    },
     name: 'Aave v3',
     chainId: 8453,
     poolAddress: '0xA238Dd80C259a72e81d7e4664a9801593F98d1c5',
@@ -81,6 +112,10 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '42161:arbitrum',
+    detail: {
+      addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
+      uiPoolDataProvider: '0x5c5228aC8BC1528482514aF3e27E692495148717',
+    },
     name: 'Aave v3',
     chainId: 42161,
     poolAddress: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
@@ -104,6 +139,11 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     verifiedOn: '2026-08-06',
   },
 ];
+
+/** Markets whose per-token detail can be read. A subset of {@link AAVE_MARKETS}. */
+export function marketsWithDetail(chainId: number): readonly AaveMarket[] {
+  return marketsForChain(chainId).filter((market) => market.detail !== undefined);
+}
 
 /** Every market on one chain. Empty when Aave is not deployed there. */
 export function marketsForChain(chainId: number): readonly AaveMarket[] {
