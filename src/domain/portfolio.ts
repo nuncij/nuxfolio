@@ -176,6 +176,29 @@ export const portfolioAssetSchema = z.object({
 
 export type PortfolioAsset = z.infer<typeof portfolioAssetSchema>;
 
+/**
+ * A lending-protocol account, beside the assets rather than among them.
+ *
+ * Never summed into `totalValueUsd`. These figures come from the protocol's own
+ * oracle, not the price provider the assets use, and the collateral behind them is
+ * invisible to the asset list — so combining the two would be arithmetic across two
+ * scopes. See `domain/protocolAccount.ts` for the worked example.
+ */
+export const protocolAccountSchema = z.object({
+  chainId: z.number().int().positive(),
+  protocol: z.literal('aave-v3'),
+  marketId: z.string().min(1),
+  marketName: z.string().min(1),
+  /** `failed` means the read did not answer — it is not a claim of "no debt". */
+  status: z.enum(['ok', 'failed']),
+  collateralValueUsd: decimalString.nullable(),
+  borrowedValueUsd: decimalString.nullable(),
+  /** Unitless, 18 decimals. Null when the wallet has no debt in this market. */
+  healthFactor: decimalString.nullable(),
+});
+
+export type ProtocolAccountDto = z.infer<typeof protocolAccountSchema>;
+
 export const portfolioSchema = z.object({
   /** Checksummed address. */
   address: z.string().min(1),
@@ -203,6 +226,15 @@ export const portfolioSchema = z.object({
   balanceSource: z.string().min(1),
   priceSource: z.string().nullable(),
   assets: z.array(portfolioAssetSchema),
+  /**
+   * Lending-protocol accounts on this chain, one per market.
+   *
+   * Present but empty means "checked, and this wallet uses none" — the read
+   * succeeded. Absent markets are not represented at all, and a market that could
+   * not be read appears with `status: 'failed'` rather than being dropped, so a
+   * broken read never renders as an absence of debt.
+   */
+  protocolAccounts: z.array(protocolAccountSchema),
   /**
    * The FX rate offered for display conversion, or null when none could be
    * fetched. Carried on the response rather than fetched by the browser: a

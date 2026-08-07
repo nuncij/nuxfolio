@@ -57,6 +57,28 @@ export function formatPercent(value: string | null): string {
 }
 
 /**
+ * A health factor, rounded for reading.
+ *
+ * The stored value carries all 18 of Aave's decimals, because it is a decimal string
+ * like every other number here and truncating at the source would lose information
+ * the API should still carry. But `1.786609136659433679` on a page is noise, and
+ * Aave's own interface shows two decimals — matching it is what makes the two
+ * reconcilable at a glance.
+ *
+ * Rounded **down**, deliberately. A factor of 1.0999 shown as "1.10" reads as further
+ * from the liquidation threshold than it is, and this is the one number on the page
+ * where rounding the wrong way flatters a risk. Aave's own interface rounds to
+ * nearest, so the last digit can differ from theirs by 0.01 — accepted, because the
+ * figures still reconcile and the difference only ever errs toward caution.
+ */
+export function formatHealthFactor(value: string | null): string {
+  if (value === null || !isDecimalString(value)) {
+    return PLACEHOLDER;
+  }
+  return parseDecimal(value).toFixed(2, Money.ROUND_DOWN);
+}
+
+/**
  * Token quantities keep more precision than money: for an 18-decimal token a
  * holding can be legitimately tiny, and rounding it to a fixed number of
  * decimals would show `0` for a real balance.

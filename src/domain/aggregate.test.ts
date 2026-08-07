@@ -45,6 +45,7 @@ function chainPortfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     address: TEST_ADDRESS,
     chainId: 1,
     chainName: 'Ethereum Mainnet',
+    protocolAccounts: [],
     totalValueUsd: priced.length > 0 ? '2000.00000000' : null,
     assetCount: assets.length,
     pricedAssetCount: priced.length,
@@ -73,6 +74,7 @@ describe('buildAggregatePortfolio', () => {
         chainPortfolio({
           chainId: 8453,
           chainName: 'Base',
+          protocolAccounts: [],
           totalValueUsd: '500.50000000',
           assets: [asset({ assetId: '8453:native', chainId: 8453, valueUsd: '500.50000000' })],
         }),
@@ -207,6 +209,7 @@ describe('withCrossChainShares', () => {
         chainPortfolio({
           chainId: 8453,
           chainName: 'Base',
+          protocolAccounts: [],
           totalValueUsd: '250.00000000',
           assets: [asset({ assetId: '8453:native', chainId: 8453, valueUsd: '250' })],
         }),
@@ -307,6 +310,7 @@ describe('summarizeAggregate', () => {
         chainPortfolio({
           chainId: 8453,
           chainName: 'Base',
+          protocolAccounts: [],
           totalValueUsd: '900.00000000',
           assets: [asset({ assetId: '8453:big', chainId: 8453, symbol: 'BIG', valueUsd: '900' })],
         }),

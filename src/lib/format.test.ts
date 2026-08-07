@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatPercent, formatQuantity, formatRelativeTime, formatUsd } from './format';
+import {
+  formatHealthFactor,
+  formatPercent,
+  formatQuantity,
+  formatRelativeTime,
+  formatUsd,
+} from './format';
 
 describe('formatUsd', () => {
   it('formats an ordinary amount', () => {
@@ -106,5 +112,29 @@ describe('formatRelativeTime', () => {
 
   it('says unknown for an unparseable timestamp', () => {
     expect(formatRelativeTime('never', now)).toBe('unknown');
+  });
+});
+
+describe('formatHealthFactor', () => {
+  it('shows two decimals, cut rather than rounded to nearest', () => {
+    // 1.7866… becomes 1.78, not 1.79. Aave's own interface rounds to nearest, so
+    // the last digit can differ by 0.01 — accepted deliberately, because the two
+    // still reconcile and the direction of the difference is the safe one.
+    expect(formatHealthFactor('1.786609136659433679')).toBe('1.78');
+  });
+
+  it('rounds down, so a risk is never flattered', () => {
+    // 1.0999 shown as "1.10" would read as further from liquidation than it is.
+    // This is the one number on the page where rounding up understates a danger.
+    expect(formatHealthFactor('1.0999')).toBe('1.09');
+    expect(formatHealthFactor('0.999')).toBe('0.99');
+  });
+
+  it('renders no debt as the placeholder rather than a number', () => {
+    expect(formatHealthFactor(null)).toBe('—');
+  });
+
+  it('refuses a value that is not a decimal string', () => {
+    expect(formatHealthFactor('1.157920892373162e+59')).toBe('—');
   });
 });

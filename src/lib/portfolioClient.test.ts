@@ -9,6 +9,7 @@ const VALID_PORTFOLIO = {
   address: TEST_ADDRESS,
   chainId: 1,
   chainName: 'Ethereum Mainnet',
+  protocolAccounts: [],
   totalValueUsd: '2000.00000000',
   assetCount: 1,
   pricedAssetCount: 1,

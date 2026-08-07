@@ -63,6 +63,7 @@ function chainPortfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     address: TEST_ADDRESS,
     chainId: 1,
     chainName: 'Ethereum Mainnet',
+    protocolAccounts: [],
     totalValueUsd: priced.length > 0 ? '2000.00000000' : null,
     assetCount: assets.length,
     pricedAssetCount: assets.filter((entry) => entry.valueUsd !== null).length,

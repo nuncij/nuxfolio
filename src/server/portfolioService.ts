@@ -4,7 +4,9 @@ import { getChainConfig, listChains, type ChainConfig } from '@/config/chains';
 import { getSecretValues, getServerEnv, type ServerEnv } from '@/config/env';
 import type { WalletAddress } from '@/domain/address';
 import { chainFailureKindFromProviderError, chainFailureMessage } from '@/domain/chainFailure';
+import { marketsForChain } from '@/config/aaveMarkets';
 import { buildAggregatePortfolio, buildPortfolio } from '@/domain/normalize';
+import { readAaveAccounts } from '@/providers/protocols/aaveV3';
 import type {
   AggregatePortfolio,
   Portfolio,
@@ -196,6 +198,29 @@ async function loadPortfolio(input: {
     });
   }
 
+  // Lending accounts, read alongside prices rather than after them: the two are
+  // independent, and a wallet with debt should not wait for a price batch to learn
+  // it. `readAaveAccounts` never throws — a market that fails comes back as a
+  // `failed` account, because "we could not ask" and "there is no debt" must not
+  // arrive as the same answer.
+  const markets = marketsForChain(chain.chainId);
+  const protocolAccounts = await readAaveAccounts({
+    address: request.address,
+    markets,
+    rpcUrls: chain.rpcUrls,
+    dependencies: { context },
+  });
+
+  if (protocolAccounts.some((account) => account.status === 'failed')) {
+    const failed = protocolAccounts.filter((account) => account.status === 'failed').length;
+    warnings.push({
+      code: 'protocols.unavailable',
+      message:
+        `${failed} of ${markets.length} lending ${markets.length === 1 ? 'market' : 'markets'} on ` +
+        `${chain.shortName} could not be read, so any borrowing there is not shown.`,
+    });
+  }
+
   const portfolioInput = {
     address: request.address,
     chain: {
@@ -203,6 +228,7 @@ async function loadPortfolio(input: {
       name: chain.name,
       nativeSymbol: chain.nativeAsset.symbol,
     },
+    protocolAccounts,
     balances: snapshot.balances,
     // The bundled list is what "listed token" means for spoof detection, so the
     // same data that bounds the keyless scan also whitelists indexer results.

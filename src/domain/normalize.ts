@@ -1,3 +1,4 @@
+import type { ProtocolAccountDto } from './portfolio';
 import type { PriceQuote, RawBalance } from '@/providers/types';
 import { priceRefKey } from '@/providers/types';
 
@@ -74,6 +75,12 @@ export type BuildPortfolioInput = {
   coverage: PortfolioCoverage;
   balanceSource: string;
   priceSource: string | null;
+  /**
+   * Lending-protocol accounts read for this chain. Optional because most callers
+   * — every existing test, and the progressive aggregate — have none, and an
+   * absent list means nothing was asked rather than nothing was found.
+   */
+  protocolAccounts?: readonly ProtocolAccountDto[];
   warnings: readonly PortfolioWarning[];
   fetchedAt: string;
   priceConfidenceMin: number;
@@ -138,6 +145,9 @@ export function buildPortfolio(input: BuildPortfolioInput): Portfolio {
     address: input.address,
     chainId: input.chain.chainId,
     chainName: input.chain.name,
+    // Empty is the honest default for a chain where nothing was asked: `failed`
+    // accounts are the only way a read that did not answer reaches the wire.
+    protocolAccounts: [...(input.protocolAccounts ?? [])],
     totalValueUsd: pricedSubtotal,
     assetCount: assets.length,
     pricedAssetCount,

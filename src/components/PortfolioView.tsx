@@ -48,6 +48,7 @@ import { ChainSelector } from './ChainSelector';
 import { PortfolioSkeleton } from './PortfolioSkeleton';
 import { PortfolioSummary } from './PortfolioSummary';
 import { PriceSourceCredit } from './PriceSourceCredit';
+import { LendingPanel } from './LendingPanel';
 import { WarningPanel } from './WarningPanel';
 
 /**
@@ -312,6 +313,7 @@ function PortfolioBody({
     return (
       <>
         <PortfolioSummary portfolio={data.portfolio} />
+        <LendingPanel accounts={data.portfolio.protocolAccounts} />
         <WarningPanel warnings={data.portfolio.warnings} />
         <AssetTable
           assets={data.portfolio.assets}
@@ -338,6 +340,10 @@ function PortfolioBody({
       ) : null}
       <PortfolioSummary aggregate={aggregate} progress={shownNetworks} />
       <ChainBreakdown aggregate={aggregate} ensName={ensName} />
+      {/* Flattened across networks: a wallet borrows on a market, and which chain
+          that market sits on is already in its name. The accounts arrive as each
+          chain settles, so this grows with the aggregate rather than waiting. */}
+      <LendingPanel accounts={aggregate.chains.flatMap((chain) => chain.protocolAccounts)} />
       <WarningPanel warnings={collectAggregateWarnings(aggregate)} />
       <AssetTable assets={assets} explorerUrl={null} showChain initialSort={initialSort} />
       <PriceSourceCredit
