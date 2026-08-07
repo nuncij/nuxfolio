@@ -1482,3 +1482,69 @@ owner — but it means the posture no longer depends on the network boundary alo
 `generateMetadata` continues to resolve nothing, and the bundle route continues to
 refuse names outright: a bundle URL would multiply one page load into up to ten
 lookups, and that argument stands on its own regardless of the limiter.
+
+---
+
+## ADR-026 — Protocol accounts sit beside the assets, never inside the total
+
+**Context.** M5 added Aave v3 borrower state: collateral, debt, and a health factor.
+Every existing number on the page is a wallet balance priced by DefiLlama or CoinGecko.
+These are neither — they are computed by Aave's own oracle, and the collateral behind
+them is not in the asset list at all.
+
+**Decision.** `protocolAccounts` is a separate array on `Portfolio`, rendered in its own
+panel, and **no arithmetic combines it with `totalValueUsd`**.
+
+**Why no net total.** The obvious formula — `total − debt` — is wrong here, and the
+plan proposed it before review round 12 worked an example (F-02). Aave v3 receipt
+tokens are absent from the bundled lists, so supplied collateral is invisible to the
+total. A wallet supplying $100,000 and borrowing $40,000 it still holds would report:
+
+| Figure          | Value       |
+| --------------- | ----------- |
+| `totalValueUsd` | $40,000     |
+| `total − debt`  | **$0**      |
+| Actually worth  | **$60,000** |
+
+The inputs were all correct. The error was subtracting a liability from a total that
+never contained its matching asset — arithmetic across two scopes. No measurement
+catches that; only working an example end to end does. A net total becomes computable
+in M5-2, when per-token collateral is read and priced by the same source as everything
+else.
+
+**Why Aave's own figures, not ours re-priced.** `getUserAccountData` returns money in
+Aave's base currency (measured: USD at 1e8, through each market's own oracle). That is
+a second price source — WETH at $1912.61 against DefiLlama's $1912.02 on 2026-08-06,
+0.03 % apart and well inside ADR-019's tolerance. Re-pricing the debt with DefiLlama
+while showing Aave's health factor would produce a page whose two numbers cannot be
+reconciled with each other, because the health factor is derived from Aave's prices.
+Internal inconsistency is worse than a 0.03 % difference from another source. So the
+figures are Aave's, and the panel says "Reported by Aave" rather than implying they
+share a denominator with the total above.
+
+**Consequences.**
+
+**Three states, three renderings.** No position renders as _nothing_ — a row of zeros
+would be a claim. A market that could not be read renders as "Could not be read" plus a
+warning naming how many of how many failed; it is never "no debt". Only a successful
+read with a real balance is shown as a figure.
+
+**Per market, not per chain.** Ethereum runs Core, Prime and EtherFi. Keying on chain
+alone would read one and report a wallet borrowing in another as debt-free (round 12,
+F-04). Seven markets are registered across five chains, each verified live — address,
+that it answers, and that its oracle really reports USD at 1e8, because the interface
+permits a base that would make every `…ValueUsd` field a lie (F-08).
+
+**The health factor carries its definition, and rounds down.** "1.78" alone does not
+say whether higher is better, so the page states that below 1 becomes eligible for
+liquidation — a definition, not advice (F-09), rendered as text rather than a tooltip
+that does not exist on a touch device. It rounds **down** to two decimals: 1.0999 shown
+as "1.10" reads as further from liquidation than it is, and this is the one number here
+where rounding the pleasant way flatters a risk. Aave rounds to nearest, so the last
+digit can differ by 0.01, always toward caution.
+
+**What this does not cover.** `totalCollateralBase` counts only reserves enabled as
+collateral, so a supply-with-collateral-off position is invisible (F-03) — which is why
+the field is `collateralValueUsd` and the milestone's promise is borrower risk rather
+than "your Aave positions". Per-token detail, other protocols, and any net figure are
+M5-2.

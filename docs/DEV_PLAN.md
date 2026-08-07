@@ -4,7 +4,7 @@ Status: checkpoint after milestone 2, and the plan forward.
 Written 2026-07-30, last revised 2026-07-31. Companion documents:
 `IMPLEMENTATION_PLAN.md` (what was built and why), `M2_PLAN.md` (milestone 2's
 per-item specifications), `M2-2_PLAN.md` (the price cross-check, as specified and
-as delivered), `DECISIONS.md` (ADR-001…025), `PROVIDERS.md`, `REVIEW_LOG.md`
+as delivered), `DECISIONS.md` (ADR-001…026), `PROVIDERS.md`, `REVIEW_LOG.md`
 (twelve independent review rounds).
 
 ---
@@ -56,8 +56,8 @@ GitHub.
 | Palette contrast guard — parses `globals.css`, asserts WCAG AA | ✅ done           |
 | E2E against a production build instead of `next dev`           | ✅ done (ADR-017) |
 
-Totals now: **851 unit tests across 40 files + 31 E2E scenarios**, `pnpm verify`
-green. 25 ADRs, 12 independent review rounds.
+Totals now: **884 unit tests across 42 files + 31 E2E scenarios**, `pnpm verify`
+green. 26 ADRs, 12 independent review rounds.
 
 **Working today, with no API key and no configuration:**
 
@@ -97,7 +97,7 @@ the agreement, not the balance, is the claim.
 7 agreed, the widest gap 0.50 % on syrupUSDC. Total unaffected. 8 requests for a
 full five-network load.
 
-**Quality state:** 851 tests across 40 files plus 31 end-to-end scenarios;
+**Quality state:** 884 tests across 42 files plus 31 end-to-end scenarios;
 format, lint, type check and production build all pass (`pnpm verify`; E2E runs
 separately as `pnpm test:e2e`). Seven rounds of independent Codex review, 62 findings
 in total: 58 adopted at least in part, six rejected with a recorded reason, plus
@@ -329,6 +329,9 @@ All three are keyless.
 
 **Milestones 2 and 3 are both complete**, M2-5(b) having closed the last of milestone
 2 on 2026-08-04. What remains before milestone 4 is optional:
+
+**M5-1 shipped on 2026-08-07**: Aave v3 debt, collateral and health factor, across
+seven markets on five chains (ADR-026). What remains optional:
 
 - **The two cut follow-ons**, if either is wanted: a saved wallet's last-seen total,
   or merged bundle rows. Both need the same thing — an observation model that can hold
