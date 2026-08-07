@@ -1,6 +1,12 @@
 import 'server-only';
 
-import { decodeFunctionResult, encodeFunctionData, type Hex } from 'viem';
+import {
+  decodeAbiParameters,
+  decodeFunctionResult,
+  encodeFunctionData,
+  hexToString,
+  type Hex,
+} from 'viem';
 
 import type { AaveMarket } from '@/config/aaveMarkets';
 import type { WalletAddress } from '@/domain/address';
@@ -10,17 +16,30 @@ import type { RpcRequester } from '../balances/jsonRpc';
 import { ProviderError } from '../types';
 
 /**
- * Which assets a wallet supplied and borrowed, per market.
+ * Which assets a wallet supplied and borrowed, per market, and what each is worth.
  *
- * M5-1 answers "how much"; this answers "of what". Two calls per market:
+ * M5-1 answers "how much"; this answers "of what". Two calls per market, unchanged
+ * from the amounts-only version:
  *
  *  1. `UiPoolDataProvider.getUserReservesData` — every reserve in the market with the
- *     wallet's **scaled** balances. One call, fixed cost: it returns all 67 reserves
- *     on Ethereum Core whether the wallet uses them or not.
- *  2. A `Multicall3` batch of `getReserveNormalizedIncome` and
- *     `getReserveNormalizedVariableDebt` for **only the reserves with a balance** —
- *     usually a handful. Those are the indices that turn a scaled balance into a real
- *     one (see `domain/rayMath.ts` for why the *normalized* ones and not the stored).
+ *     wallet's **scaled** balances — alongside `getPriceOracle()`. Fixed cost: the
+ *     first returns all 67 reserves on Ethereum Core whether the wallet uses them or
+ *     not, and the oracle rides along for free rather than being configured.
+ *  2. One `Multicall3` batch covering **only the reserves with a balance** — usually a
+ *     handful. Per reserve it asks for the two normalized indices that turn a scaled
+ *     balance into a real one (see `domain/rayMath.ts`), plus `decimals()` and
+ *     `symbol()`; and once for the whole set, `AaveOracle.getAssetsPrices`.
+ *
+ * **The price comes from the market's own oracle**, not from the app's price provider.
+ * That is what makes a row reconcile with the market total beside it: measured on
+ * 2026-08-07 across four blocks, the rows summed to `getUserAccountData`'s collateral
+ * and debt to **zero base units**. Pricing rows with DefiLlama instead would put a
+ * breakdown under a headline it cannot add up to, off by a different fraction of a
+ * percent every block — see ADR-027.
+ *
+ * `decimals` and `symbol` are read from the token itself rather than joined against the
+ * bundled list, so an unlisted underlying is shown properly instead of being assumed to
+ * have 18 decimals.
  *
  * The struct in step 1 is Aave 3.2's four-field shape, confirmed against the deployed
  * contract. The 3.0 shape — with stable-rate fields — fails to decode, which is how
@@ -33,6 +52,30 @@ const PROVIDER_ID = 'aave-v3-reserves';
 const NORMALIZED_INCOME = '0xd15e0053';
 /** `getReserveNormalizedVariableDebt(address)` */
 const NORMALIZED_DEBT = '0x386497fd';
+/** `decimals()` */
+const DECIMALS = '0x313ce567';
+/** `symbol()` */
+const SYMBOL = '0x95d89b41';
+/** `getPriceOracle()` on the market's `PoolAddressesProvider`. */
+const PRICE_ORACLE = '0xfca513a8';
+
+/**
+ * Every selector above, keyed by the signature it claims to be.
+ *
+ * Exported only so a test can hash each signature and compare. That test exists because
+ * this constant block shipped with an invented `getPriceOracle()` selector — hardcoding
+ * four correct ones is no evidence at all about the fifth.
+ */
+export const SELECTORS: Readonly<Record<string, string>> = {
+  'getReserveNormalizedIncome(address)': NORMALIZED_INCOME,
+  'getReserveNormalizedVariableDebt(address)': NORMALIZED_DEBT,
+  'decimals()': DECIMALS,
+  'symbol()': SYMBOL,
+  'getPriceOracle()': PRICE_ORACLE,
+};
+
+/** Sub-calls per active reserve: income, debt, decimals, symbol. */
+const CALLS_PER_RESERVE = 4;
 
 const userReservesAbi = [
   {
@@ -55,6 +98,16 @@ const userReservesAbi = [
       },
       { type: 'uint8' },
     ],
+  },
+] as const;
+
+const oracleAbi = [
+  {
+    type: 'function',
+    name: 'getAssetsPrices',
+    stateMutability: 'view',
+    inputs: [{ name: 'assets', type: 'address[]' }],
+    outputs: [{ type: 'uint256[]' }],
   },
 ] as const;
 
@@ -90,6 +143,9 @@ const aggregate3Abi = [
 /** One asset a wallet has a position in, in base units of that asset. */
 export type ReservePosition = {
   readonly underlyingAsset: string;
+  /** The token's own symbol, or null when it has none that can be read. */
+  readonly symbol: string | null;
+  readonly decimals: number;
   /** Real supplied balance, or 0n. Rounded as the aToken rounds. */
   readonly supplied: bigint;
   /** Real variable debt, or 0n. Rounded as the debt token rounds. */
@@ -100,6 +156,12 @@ export type ReservePosition = {
    * figures can legitimately disagree.
    */
   readonly usedAsCollateral: boolean;
+  /**
+   * The market oracle's price, in the market's base-currency unit. Null when the
+   * oracle answered zero — a broken feed, which must render as "no price" rather than
+   * turn a collateral position into a worthless one.
+   */
+  readonly priceBase: bigint | null;
 };
 
 /**
@@ -125,29 +187,15 @@ export async function readMarketReserves(input: {
     );
   }
 
-  const userData = await requester({
-    method: 'eth_call',
-    params: [
-      {
-        to: market.detail.uiPoolDataProvider,
-        data: encodeFunctionData({
-          abi: userReservesAbi,
-          functionName: 'getUserReservesData',
-          args: [market.detail.addressesProvider, address],
-        }),
-      },
-      'latest',
-    ],
-  });
-
-  const [reserves] = decodeFunctionResult({
-    abi: userReservesAbi,
-    functionName: 'getUserReservesData',
-    data: assertHex(userData),
+  const { reserves, priceOracle } = await readUserReserves({
+    address,
+    detail: market.detail,
+    multicallAddress,
+    requester,
   });
 
   // Only reserves the wallet actually touches. On Ethereum Core that turns 67 into
-  // a handful, and the index batch below is sized by this rather than by the market.
+  // a handful, and the batch below is sized by this rather than by the market.
   const active = reserves.filter(
     (reserve) => reserve.scaledATokenBalance > 0n || reserve.scaledVariableDebt > 0n,
   );
@@ -156,70 +204,211 @@ export async function readMarketReserves(input: {
     return [];
   }
 
-  const indices = await readNormalizedIndices({
-    assets: active.map((reserve) => reserve.underlyingAsset),
+  const assets = active.map((reserve) => reserve.underlyingAsset);
+  const details = await readReserveDetails({
+    assets,
     poolAddress: market.poolAddress,
+    priceOracle,
     multicallAddress,
     requester,
   });
 
-  return active.map((reserve) => {
-    const index = indices.get(reserve.underlyingAsset.toLowerCase());
-    if (index === undefined) {
-      // A reserve whose index could not be read cannot be scaled, and a scaled
-      // balance shown as an amount would be wrong by orders of magnitude.
+  return active.map((reserve, position) => {
+    const detail = details[position];
+    if (detail === undefined) {
       throw new ProviderError(
         'invalid-response',
         PROVIDER_ID,
-        `no normalized index for ${reserve.underlyingAsset}`,
+        `no detail for ${reserve.underlyingAsset}`,
       );
     }
     return {
       underlyingAsset: reserve.underlyingAsset,
-      supplied: rayMulSupply(reserve.scaledATokenBalance, index.income),
-      borrowed: rayMulDebt(reserve.scaledVariableDebt, index.debt),
+      symbol: detail.symbol,
+      decimals: detail.decimals,
+      supplied: rayMulSupply(reserve.scaledATokenBalance, detail.income),
+      borrowed: rayMulDebt(reserve.scaledVariableDebt, detail.debt),
       usedAsCollateral: reserve.usageAsCollateralEnabledOnUser,
+      priceBase: detail.priceBase,
     };
   });
 }
 
 /**
- * Both normalized indices for several assets, in one `aggregate3`.
+ * The wallet's scaled balances, and the address of the oracle that prices them.
  *
- * `allowFailure` is false: a missing index is not a partial answer, it is an
- * unscalable balance, and the caller needs to hear that as a failure rather than
- * receive a position with a silently wrong amount.
+ * Both in one `aggregate3`, so deriving the oracle costs no extra round trip. It is
+ * derived rather than configured on purpose: a pool address that goes stale stops
+ * answering and the read fails loudly, but a stale *oracle* keeps returning plausible
+ * prices from a market nobody is using any more — the rows would still look right and
+ * would quietly stop adding up to the headline (review round 13). Asking the market's
+ * own addresses provider makes that impossible instead of merely unlikely.
  */
-async function readNormalizedIndices(input: {
-  assets: readonly string[];
-  poolAddress: string;
+async function readUserReserves(input: {
+  address: WalletAddress;
+  detail: { addressesProvider: WalletAddress; uiPoolDataProvider: WalletAddress };
   multicallAddress: string;
   requester: RpcRequester;
-}): Promise<ReadonlyMap<string, { income: bigint; debt: bigint }>> {
-  const { assets, poolAddress, multicallAddress, requester } = input;
+}): Promise<{
+  reserves: readonly {
+    underlyingAsset: string;
+    scaledATokenBalance: bigint;
+    usageAsCollateralEnabledOnUser: boolean;
+    scaledVariableDebt: bigint;
+  }[];
+  priceOracle: string;
+}> {
+  const { address, detail, multicallAddress, requester } = input;
 
-  const calls = assets.flatMap((asset) => {
-    const padded = asset.slice(2).toLowerCase().padStart(64, '0');
-    return [
-      {
-        target: poolAddress as Hex,
-        allowFailure: false,
-        callData: `${NORMALIZED_INCOME}${padded}` as Hex,
-      },
-      {
-        target: poolAddress as Hex,
-        allowFailure: false,
-        callData: `${NORMALIZED_DEBT}${padded}` as Hex,
-      },
-    ];
+  const results = await aggregate3(requester, multicallAddress, [
+    {
+      target: detail.uiPoolDataProvider,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: userReservesAbi,
+        functionName: 'getUserReservesData',
+        args: [detail.addressesProvider, address],
+      }),
+    },
+    { target: detail.addressesProvider, allowFailure: false, callData: PRICE_ORACLE },
+  ]);
+
+  const [userData, oracle] = results;
+  if (userData?.success !== true || oracle?.success !== true) {
+    throw new ProviderError('unavailable', PROVIDER_ID, 'the market did not answer');
+  }
+
+  const [reserves] = decodeFunctionResult({
+    abi: userReservesAbi,
+    functionName: 'getUserReservesData',
+    data: userData.returnData,
   });
 
+  return { reserves, priceOracle: `0x${oracle.returnData.slice(-40)}` };
+}
+
+type ReserveDetail = {
+  readonly income: bigint;
+  readonly debt: bigint;
+  readonly decimals: number;
+  readonly symbol: string | null;
+  readonly priceBase: bigint | null;
+};
+
+/**
+ * Everything a row needs beyond the scaled balances, in one `aggregate3`.
+ *
+ * `allowFailure` is false for all of it except `symbol()`. An index that did not
+ * answer leaves a balance unscalable and a missing `decimals` leaves it unrenderable —
+ * both are wrong-by-orders-of-magnitude rather than partial, so the caller must hear a
+ * failure. A name is the one part a row can do without: MKR, one of the 80 Ethereum
+ * reserves, returns `bytes32` rather than a string, so insisting on a name would fail
+ * an entire market for any wallet holding it.
+ */
+async function readReserveDetails(input: {
+  assets: readonly string[];
+  poolAddress: string;
+  priceOracle: string;
+  multicallAddress: string;
+  requester: RpcRequester;
+}): Promise<readonly ReserveDetail[]> {
+  const { assets, poolAddress, priceOracle, multicallAddress, requester } = input;
+
+  const calls = [
+    {
+      target: priceOracle as Hex,
+      allowFailure: false,
+      callData: encodeFunctionData({
+        abi: oracleAbi,
+        functionName: 'getAssetsPrices',
+        args: [assets as readonly Hex[]],
+      }),
+    },
+    ...assets.flatMap((asset) => {
+      const padded = asset.slice(2).toLowerCase().padStart(64, '0');
+      return [
+        {
+          target: poolAddress as Hex,
+          allowFailure: false,
+          callData: `${NORMALIZED_INCOME}${padded}` as Hex,
+        },
+        {
+          target: poolAddress as Hex,
+          allowFailure: false,
+          callData: `${NORMALIZED_DEBT}${padded}` as Hex,
+        },
+        { target: asset as Hex, allowFailure: false, callData: DECIMALS as Hex },
+        { target: asset as Hex, allowFailure: true, callData: SYMBOL as Hex },
+      ];
+    }),
+  ];
+
+  const results = await aggregate3(requester, multicallAddress, calls);
+
+  const priceResult = results[0];
+  if (priceResult?.success !== true) {
+    throw new ProviderError('invalid-response', PROVIDER_ID, 'the market oracle did not answer');
+  }
+  const [prices] = decodeAbiParameters([{ type: 'uint256[]' }], priceResult.returnData);
+  if (prices.length !== assets.length) {
+    throw new ProviderError(
+      'invalid-response',
+      PROVIDER_ID,
+      `oracle returned ${prices.length} prices for ${assets.length} assets`,
+    );
+  }
+
+  return assets.map((asset, position) => {
+    const base = 1 + position * CALLS_PER_RESERVE;
+    const income = results[base];
+    const debt = results[base + 1];
+    const decimals = results[base + 2];
+    const symbol = results[base + 3];
+
+    if (income?.success !== true || debt?.success !== true || decimals?.success !== true) {
+      throw new ProviderError(
+        'invalid-response',
+        PROVIDER_ID,
+        `incomplete reserve detail for ${asset}`,
+      );
+    }
+
+    const price = prices[position] ?? 0n;
+    return {
+      income: BigInt(income.returnData),
+      debt: BigInt(debt.returnData),
+      decimals: Number(BigInt(decimals.returnData)),
+      symbol: symbol?.success === true ? decodeSymbol(symbol.returnData) : null,
+      // Zero is the oracle saying it has no opinion, not a token worth nothing.
+      priceBase: price === 0n ? null : price,
+    };
+  });
+}
+
+type Call = { target: string; allowFailure: boolean; callData: string };
+
+/**
+ * One `Multicall3.aggregate3`, with the length of the answer checked against the
+ * length of the question.
+ *
+ * Results are matched to calls by position, so a short answer would silently value each
+ * asset with its neighbour's numbers rather than fail.
+ */
+async function aggregate3(
+  requester: RpcRequester,
+  multicallAddress: string,
+  calls: readonly Call[],
+): Promise<readonly { success: boolean; returnData: Hex }[]> {
   const raw = await requester({
     method: 'eth_call',
     params: [
       {
         to: multicallAddress,
-        data: encodeFunctionData({ abi: aggregate3Abi, functionName: 'aggregate3', args: [calls] }),
+        data: encodeFunctionData({
+          abi: aggregate3Abi,
+          functionName: 'aggregate3',
+          args: [calls as readonly { target: Hex; allowFailure: boolean; callData: Hex }[]],
+        }),
       },
       'latest',
     ],
@@ -239,19 +428,25 @@ async function readNormalizedIndices(input: {
     );
   }
 
-  const indices = new Map<string, { income: bigint; debt: bigint }>();
-  for (const [position, asset] of assets.entries()) {
-    const income = results[position * 2];
-    const debt = results[position * 2 + 1];
-    if (income?.success !== true || debt?.success !== true) {
-      continue;
-    }
-    indices.set(asset.toLowerCase(), {
-      income: BigInt(income.returnData),
-      debt: BigInt(debt.returnData),
-    });
+  return results;
+}
+
+/**
+ * A token's symbol, whichever of the two shapes it returns it in.
+ *
+ * A `bytes32` response is exactly 32 bytes; the shortest ABI-encoded string is 64.
+ * Anything that decodes to nothing usable is null, which the UI renders as the address.
+ */
+function decodeSymbol(data: Hex): string | null {
+  try {
+    const symbol =
+      (data.length - 2) / 2 === 32
+        ? hexToString(data, { size: 32 })
+        : decodeAbiParameters([{ type: 'string' }], data)[0];
+    return symbol.length === 0 ? null : symbol;
+  } catch {
+    return null;
   }
-  return indices;
 }
 
 function assertHex(value: unknown): Hex {

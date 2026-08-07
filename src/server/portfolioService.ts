@@ -207,6 +207,7 @@ async function loadPortfolio(input: {
   const protocolAccounts = await readAaveAccounts({
     address: request.address,
     markets,
+    multicallAddress: chain.multicall3Address,
     rpcUrls: chain.rpcUrls,
     dependencies: { context },
   });

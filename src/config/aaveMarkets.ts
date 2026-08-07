@@ -12,10 +12,11 @@ import type { WalletAddress } from '@/domain/address';
  *
  * **Addresses are recorded with the date they were checked**, and deliberately not
  * refreshed automatically. The token lists have a weekly job because their *contents*
- * change constantly; these are proxy addresses that change when Aave governance
- * deploys a new market, which is rare and newsworthy. A scheduled refresh would be
- * machinery that never fires. CI asserts each pool still answers instead, which is the
- * proportionate version of the same guarantee.
+ * change constantly; these are proxy addresses that change when Aave governance deploys
+ * a new market, which is rare and newsworthy. Nothing re-checks them: a market that
+ * moves stops answering, which surfaces as a `failed` account rather than as a wrong
+ * figure. That is the accepted risk, and it is bounded because every address here is a
+ * call *target* — the numbers themselves are always read live.
  *
  * **Only USD-denominated markets belong here.** Aave's oracle interface permits a
  * different base currency — ETH at 1e18, for instance — which would make every
@@ -40,14 +41,20 @@ export type AaveMarket = {
   readonly baseCurrencyDecimals: number;
   /**
    * The market's `PoolAddressesProvider`, derived from the pool itself rather than
-   * copied from a deployment list, and the `UiPoolDataProvider` that answers
-   * `getUserReservesData` for it.
+   * copied from a deployment list, the `UiPoolDataProvider` that answers
+   * `getUserReservesData` for it, and the market's own `AaveOracle`.
    *
-   * **Optional, and its absence is meaningful.** A market without a verified pair
+   * **Optional, and its absence is meaningful.** A market without a verified trio
    * still reports account-level totals and a health factor (M5-1); it simply cannot
    * report which assets those are made of. Two of the seven markets are in that
    * state — the provider addresses this project had for them did not answer, and a
    * guessed address that silently decodes to nonsense is worse than a stated gap.
+   *
+   * The market's own price oracle is deliberately **not** here. It is read from the
+   * addresses provider at request time instead, in the same batch as the balances, so
+   * it costs nothing: a stale pool address stops answering and fails loudly, but a
+   * stale oracle keeps returning plausible prices from a market nobody uses any more,
+   * and the rows would quietly stop adding up to the totals (review round 13).
    */
   readonly detail?: {
     readonly addressesProvider: WalletAddress;
@@ -72,7 +79,7 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     chainId: 1,
     poolAddress: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-07',
   },
   {
     marketId: '1:prime',
@@ -84,7 +91,7 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     chainId: 1,
     poolAddress: '0x4e033931ad43597d96D6bcc25c280717730B58B1',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-07',
   },
   {
     marketId: '1:etherfi',
@@ -96,7 +103,7 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     chainId: 1,
     poolAddress: '0x0AA97c284e98396202b6A04024F5E2c65026F3c0',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-07',
   },
   {
     marketId: '8453:base',
@@ -108,7 +115,7 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     chainId: 8453,
     poolAddress: '0xA238Dd80C259a72e81d7e4664a9801593F98d1c5',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-07',
   },
   {
     marketId: '42161:arbitrum',
@@ -120,7 +127,7 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     chainId: 42161,
     poolAddress: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-07',
   },
   {
     marketId: '10:optimism',

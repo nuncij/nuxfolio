@@ -5,28 +5,39 @@ import type { WalletAddress } from '@/domain/address';
 import {
   failedProtocolAccount,
   toProtocolAccount,
+  type PositionsStatus,
   type ProtocolAccount,
 } from '@/domain/protocolAccount';
+import { toProtocolPosition, type ProtocolPosition } from '@/domain/protocolPosition';
 
 import { createRpcRequester, type RpcRequester } from '../balances/jsonRpc';
 import { ProviderError, type ProviderContext } from '../types';
 
+import { readMarketReserves } from './aaveReserves';
+
 /**
- * Reads Aave v3 borrower state: collateral, debt, and how close the wallet is to
- * liquidation.
+ * Reads Aave v3 borrower state: collateral, debt, how close the wallet is to
+ * liquidation, and which assets those totals are made of.
  *
- * **One `eth_call` per market**, `Pool.getUserAccountData(address)`. That choice came
- * from probing rather than from documentation: the alternative,
+ * **One `eth_call` per market for the totals**, `Pool.getUserAccountData(address)`.
+ * That choice came from probing rather than from documentation: the alternative,
  * `UiPoolDataProvider.getUserReservesData`, does return per-token detail in one call
  * but its balances are *scaled* and need a second call for the liquidity indices to
  * mean anything — and the struct this code would have declared from memory fails to
  * decode against the deployed contract, because Aave 3.2 removed stable-rate
- * borrowing. Per-token detail is M5-2, with its own arithmetic and its own tests.
+ * borrowing.
  *
- * The function selector is hard-coded rather than derived through an ABI encoder. The
- * call takes one address and returns six `uint256`s, so a decoder would be more
- * machinery than the thing it decodes — and the layout is asserted by tests against
- * real captured responses.
+ * **The totals are read first, and never wait on the breakdown.** They are what the
+ * panel is for, so a breakdown that fails or runs out of budget costs the rows and
+ * nothing else. The breakdown is read for every detail-capable market, including one
+ * whose totals are zero: a supply with collateral switched off contributes to neither
+ * total, so skipping on zero totals would hide exactly the position only the breakdown
+ * can show. Measured at 134 ms across all three Ethereum markets, that is worth paying.
+ *
+ * The `getUserAccountData` selector is hard-coded rather than derived through an ABI
+ * encoder. The call takes one address and returns six `uint256`s, so a decoder would be
+ * more machinery than the thing it decodes — and the layout is asserted by tests
+ * against real captured responses.
  */
 
 const PROVIDER_ID = 'aave-v3';
@@ -54,10 +65,12 @@ export type AaveDependencies = {
 export async function readAaveAccounts(input: {
   address: WalletAddress;
   markets: readonly AaveMarket[];
+  /** Null when the chain has no Multicall3, which costs the breakdown but not the totals. */
+  multicallAddress: WalletAddress | null;
   rpcUrls: readonly string[];
   dependencies: AaveDependencies;
 }): Promise<readonly ProtocolAccount[]> {
-  const { address, markets, rpcUrls, dependencies } = input;
+  const { address, markets, multicallAddress, rpcUrls, dependencies } = input;
 
   if (markets.length === 0) {
     return [];
@@ -67,13 +80,13 @@ export async function readAaveAccounts(input: {
     dependencies.requester ??
     createRpcRequester({ urls: rpcUrls, providerId: PROVIDER_ID, context: dependencies.context });
 
-  // Sequential on purpose. It is at most three calls on the busiest chain, they share
+  // Sequential on purpose. It is at most three markets on the busiest chain, they share
   // one endpoint, and the chain-level scan already runs several chains at once — a
   // second layer of fan-out would multiply load on a public endpoint to save
   // milliseconds.
   const accounts: ProtocolAccount[] = [];
   for (const market of markets) {
-    accounts.push(await readMarket({ address, market, requester, dependencies }));
+    accounts.push(await readMarket({ address, market, multicallAddress, requester, dependencies }));
   }
   return accounts;
 }
@@ -81,18 +94,20 @@ export async function readAaveAccounts(input: {
 async function readMarket(input: {
   address: WalletAddress;
   market: AaveMarket;
+  multicallAddress: WalletAddress | null;
   requester: RpcRequester;
   dependencies: AaveDependencies;
 }): Promise<ProtocolAccount> {
-  const { address, market, requester, dependencies } = input;
+  const { address, market, multicallAddress, requester, dependencies } = input;
   const identity = {
     chainId: market.chainId,
     marketId: market.marketId,
     marketName: market.name,
   };
 
+  let raw;
   try {
-    const raw = await requester({
+    const response = await requester({
       method: 'eth_call',
       params: [
         {
@@ -102,18 +117,95 @@ async function readMarket(input: {
         'latest',
       ],
     });
-
-    return toProtocolAccount({ ...identity, raw: decodeAccountData(raw) });
+    raw = decodeAccountData(response);
   } catch (error) {
     // Logged, not swallowed: a market that silently stops answering would otherwise
     // look exactly like a wallet that closed its position.
-    dependencies.context.logger?.warn('aave.market_read_failed', {
-      marketId: market.marketId,
-      errorName: error instanceof Error ? error.name : 'NonError',
-      kind: error instanceof ProviderError ? error.kind : 'unknown',
+    logFailure(dependencies, 'aave.market_read_failed', market.marketId, error);
+    return failedProtocolAccount({
+      ...identity,
+      positionsStatus: canReadDetail(market, multicallAddress) ? 'failed' : 'unavailable',
     });
-    return failedProtocolAccount(identity);
   }
+
+  const detail = await readPositions({
+    address,
+    market,
+    multicallAddress,
+    requester,
+    dependencies,
+  });
+
+  return toProtocolAccount({ ...identity, raw, ...detail });
+}
+
+/**
+ * The per-asset breakdown, or a stated reason there is none.
+ *
+ * Never throws. The totals are already in hand by the time this runs, and losing a
+ * health factor because a second call timed out would be the failure this whole split
+ * exists to prevent (review round 13, F5).
+ */
+async function readPositions(input: {
+  address: WalletAddress;
+  market: AaveMarket;
+  multicallAddress: WalletAddress | null;
+  requester: RpcRequester;
+  dependencies: AaveDependencies;
+}): Promise<{ positions: readonly ProtocolPosition[]; positionsStatus: PositionsStatus }> {
+  const { market, multicallAddress, dependencies } = input;
+
+  if (!canReadDetail(market, multicallAddress)) {
+    return { positions: [], positionsStatus: 'unavailable' };
+  }
+  if (dependencies.context.deadline.hasExpired()) {
+    // The budget is spent and the totals are already good. Asking anyway would trade a
+    // page that renders for one that times out.
+    return { positions: [], positionsStatus: 'failed' };
+  }
+
+  try {
+    const reserves = await readMarketReserves({
+      address: input.address,
+      market,
+      multicallAddress,
+      requester: input.requester,
+    });
+    return {
+      positions: reserves.map((reserve) =>
+        toProtocolPosition({ ...reserve, asset: reserve.underlyingAsset }),
+      ),
+      positionsStatus: 'ok',
+    };
+  } catch (error) {
+    logFailure(dependencies, 'aave.detail_read_failed', market.marketId, error);
+    return { positions: [], positionsStatus: 'failed' };
+  }
+}
+
+/**
+ * Whether a breakdown is possible at all here. Both halves are permanent facts about
+ * the deployment rather than about today's request, which is why either one missing
+ * reads as `unavailable` rather than as a failure.
+ */
+function canReadDetail(
+  market: AaveMarket,
+  multicallAddress: WalletAddress | null,
+): multicallAddress is WalletAddress {
+  return market.detail !== undefined && multicallAddress !== null;
+}
+
+function logFailure(
+  dependencies: AaveDependencies,
+  event: string,
+  marketId: string,
+  error: unknown,
+): void {
+  dependencies.context.logger?.warn(event, {
+    marketId,
+    errorName: error instanceof Error ? error.name : 'NonError',
+    kind: error instanceof ProviderError ? error.kind : 'unknown',
+  });
 }
 
 /**

@@ -1,7 +1,9 @@
+import { encodeAbiParameters, parseAbiParameters } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AaveMarket } from '@/config/aaveMarkets';
 import type { WalletAddress } from '@/domain/address';
+import { Deadline } from '@/server/deadline';
 import { createTestContext, TEST_ADDRESS } from '@/test/helpers';
 
 import type { RpcRequester } from '../balances/jsonRpc';
@@ -43,6 +45,17 @@ const MARKET: AaveMarket = {
 };
 
 const PRIME: AaveMarket = { ...MARKET, marketId: '1:prime', name: 'Aave v3 Prime' };
+
+/** The same market, with the trio of addresses that make a breakdown possible. */
+const WITH_DETAIL: AaveMarket = {
+  ...MARKET,
+  detail: {
+    addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
+    uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC' as WalletAddress,
+  },
+};
+
+const MULTICALL = '0xcA11bde05977b3631167028862bE2a173976CA11' as WalletAddress;
 
 /**
  * The requester is injected, so the context's `fetch` is never reached — the
@@ -97,6 +110,7 @@ describe('readAaveAccounts', () => {
     await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [MARKET],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
@@ -118,6 +132,7 @@ describe('readAaveAccounts', () => {
     const accounts = await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [MARKET, PRIME],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
@@ -132,6 +147,7 @@ describe('readAaveAccounts', () => {
     const [account] = await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [MARKET],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
@@ -158,6 +174,7 @@ describe('readAaveAccounts', () => {
     const accounts = await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [MARKET, PRIME],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
@@ -179,6 +196,7 @@ describe('readAaveAccounts', () => {
     const accounts = await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [MARKET],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
@@ -192,11 +210,175 @@ describe('readAaveAccounts', () => {
     const accounts = await readAaveAccounts({
       address: TEST_ADDRESS,
       markets: [],
+      multicallAddress: MULTICALL,
       rpcUrls: [],
       dependencies: dependencies(requester),
     });
 
     expect(accounts).toEqual([]);
     expect(requester).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The two-call detail exchange, in the smallest form that decodes.
+ *
+ * Its contents are asserted properly in `aaveReserves.test.ts`; what these fixtures are
+ * for is the question this file owns — what happens to the *totals* when the breakdown
+ * succeeds, is skipped, or fails.
+ */
+const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+
+const DETAIL_RESERVES = encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [
+  [
+    [
+      true,
+      encodeAbiParameters(parseAbiParameters('(address,uint256,bool,uint256)[], uint8'), [
+        [[WETH, 8_496_366_850_973_757_592n, true, 0n]],
+        0,
+      ]),
+    ] as const,
+    [true, `0x${'54586bE62E3c3580375aE3723C145253060Ca0C2'.padStart(64, '0')}`] as const,
+  ],
+]);
+
+const word = (value: bigint) => `0x${value.toString(16).padStart(64, '0')}` as `0x${string}`;
+
+const DETAIL_BATCH = encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [
+  [
+    [true, encodeAbiParameters(parseAbiParameters('uint256[]'), [[192_969_208_343n]])],
+    [true, word(1_069_082_747_211_127_648_702_419_695n)],
+    [true, word(0n)],
+    [true, word(18n)],
+    [true, encodeAbiParameters(parseAbiParameters('string'), ['WETH'])],
+  ],
+]);
+
+describe('the breakdown, beside the totals rather than in front of them', () => {
+  it('reads it when the market reports something to break down', async () => {
+    const responses = [BORROWING_RESPONSE, DETAIL_RESERVES, DETAIL_BATCH];
+    let call = 0;
+    const requester = stubRequester(async () => responses[call++]!);
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [WITH_DETAIL],
+      multicallAddress: MULTICALL,
+      rpcUrls: [],
+      dependencies: dependencies(requester),
+    });
+
+    expect(account?.positionsStatus).toBe('ok');
+    expect(account?.positions).toEqual([
+      {
+        asset: WETH,
+        symbol: 'WETH',
+        supplied: '9.083319214352582347',
+        borrowed: '0',
+        usedAsCollateral: true,
+        suppliedValueUsd: '17528.0091792',
+        borrowedValueUsd: '0',
+      },
+    ]);
+  });
+
+  it('keeps the totals when only the breakdown fails', async () => {
+    // The property the split exists for (review round 13, F5): a health factor is not
+    // worth throwing away because a second call timed out.
+    let call = 0;
+    const requester = stubRequester(async () => {
+      call += 1;
+      if (call === 1) return BORROWING_RESPONSE;
+      throw new Error('the detail provider is down');
+    });
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [WITH_DETAIL],
+      multicallAddress: MULTICALL,
+      rpcUrls: [],
+      dependencies: dependencies(requester),
+    });
+
+    expect(account).toMatchObject({
+      status: 'ok',
+      borrowedValueUsd: '40000',
+      healthFactor: '1.04',
+      positionsStatus: 'failed',
+      positions: [],
+    });
+  });
+
+  it('still asks when both totals are zero, because that is where a hidden supply is', async () => {
+    // A supply with collateral switched off contributes to neither total. Skipping the
+    // read here — which an earlier version did, to save a call measured at 134 ms
+    // across all three Ethereum markets — hid exactly the position only this can show.
+    const responses = [REAL_EMPTY_RESPONSE, DETAIL_RESERVES, DETAIL_BATCH];
+    let call = 0;
+    const requester = stubRequester(async () => responses[call++]!);
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [WITH_DETAIL],
+      multicallAddress: MULTICALL,
+      rpcUrls: [],
+      dependencies: dependencies(requester),
+    });
+
+    expect(account).toMatchObject({ collateralValueUsd: '0', positionsStatus: 'ok' });
+    expect(account?.positions).toHaveLength(1);
+    expect(requester).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports a market with no verified provider as unavailable, not as failed', async () => {
+    // Optimism and BNB. The breakdown is permanently absent there, which is a
+    // different sentence from "could not be read this time".
+    const requester = stubRequester(async () => BORROWING_RESPONSE);
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [MARKET],
+      multicallAddress: MULTICALL,
+      rpcUrls: [],
+      dependencies: dependencies(requester),
+    });
+
+    expect(account?.positionsStatus).toBe('unavailable');
+    expect(requester).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a chain with no Multicall3 as unavailable too', async () => {
+    const requester = stubRequester(async () => BORROWING_RESPONSE);
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [WITH_DETAIL],
+      multicallAddress: null,
+      rpcUrls: [],
+      dependencies: dependencies(requester),
+    });
+
+    expect(account?.positionsStatus).toBe('unavailable');
+    expect(requester).toHaveBeenCalledTimes(1);
+  });
+
+  it('spends nothing on a breakdown once the request budget is gone', async () => {
+    // The totals are already in hand. Asking anyway trades a page that renders for one
+    // that times out.
+    const requester = stubRequester(async () => BORROWING_RESPONSE);
+    const context = createTestContext(globalThis.fetch, {
+      deadline: new Deadline(1, Date.now() - 1000),
+    });
+
+    const [account] = await readAaveAccounts({
+      address: TEST_ADDRESS,
+      markets: [WITH_DETAIL],
+      multicallAddress: MULTICALL,
+      rpcUrls: [],
+      dependencies: { context, requester },
+    });
+
+    expect(account).toMatchObject({ status: 'ok', positionsStatus: 'failed' });
+    expect(requester).toHaveBeenCalledTimes(1);
   });
 });

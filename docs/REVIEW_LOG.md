@@ -625,3 +625,71 @@ right. The mistake was arithmetic performed across two different scopes: subtrac
 liability from a total whose matching asset was, by this plan's own design, invisible. No
 amount of measuring would have caught it. Only working an example through end to end did,
 and that is now a step rather than an instinct.
+
+---
+
+## Round 13 — M5-2, after implementation
+
+Codex reviewed the whole M5-2 diff: per-asset rows inside an Aave market, priced by the
+market's own oracle, with the claim that the rows sum to the market totals exactly.
+
+The claim itself survived. Codex worked through e-mode, isolation mode, frozen and
+paused reserves, siloed borrowing, and a collateral-enabled reserve with a zero
+liquidation threshold, and found none of them break the sum — valuation in Aave's
+`GenericLogic` does not consult those flags. What it found instead were three things the
+measurement had not covered and three that were simply wrong.
+
+### Adopted
+
+| #   | Severity | Finding                                                                                                                                                              | What changed                                                                                                                                                                                                                                                         |
+| --- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-1 | high     | Skipping the breakdown when both totals are zero hides every supply with collateral switched off — the one position invisible to the totals by definition.           | **Measured, then reversed.** The skipped call costs 134 ms across all three Ethereum markets. The breakdown is now read for every detail-capable market; `hasPosition` considers it; the fourth status value `not-requested` was deleted because nothing reaches it. |
+| F-2 | low      | `Decimal.dividedBy` rounds to 20 significant digits, so a 21-digit base-unit amount reaches the wire short. The test that should have caught it used a power of ten. | Amounts now go through the exact `formatBaseUnits`. The vacuous test is replaced with `123456789012345678901`, which used to come back two units light.                                                                                                              |
+| F-3 | low      | A configured oracle address that goes stale keeps answering with plausible prices, so the rows would look right and quietly stop adding up.                          | The oracle is **derived** from the market's `PoolAddressesProvider`, in the same batch as the balances — no extra round trip, and five hand-maintained addresses removed from config.                                                                                |
+| F-4 | low      | The schema said a collateral flag being false was the user's choice. Aave reports the flag, not the reason.                                                          | Wording corrected. The UI's neutral "Not used as collateral" was already right.                                                                                                                                                                                      |
+| F-5 | low      | A row the oracle cannot price shows no figure, so the component's unqualified "these sum exactly" is false for that market.                                          | The claim is qualified where it is made, in ADR-027 and in the component.                                                                                                                                                                                            |
+
+Chasing F-3 turned up something the review had not asked about. Deriving the oracle
+needed a `getPriceOracle()` selector, and the one written into the constant block —
+`0x87e0a92c` — was **invented**. It sat among four correct selectors, which is exactly
+why it looked fine. Hashing the signature gives `0xfca513a8`. There is now a test that
+hashes every signature in that block and compares, because four right answers are no
+evidence at all about the fifth.
+
+The config comment claiming "CI asserts each pool still answers" was also false — no such
+job exists. Corrected to say what is true: nothing re-checks these addresses, a market
+that moves surfaces as a failed read, and every _number_ is read live regardless.
+
+### Rejected, with the residual risk recorded
+
+**Block pinning (Codex's other high).** The totals, the balances and the indices are
+three reads at `latest`, so nothing guarantees they describe one block. The fix — take
+`eth_blockNumber` and pin all three — was rejected. Interest accruing over the few
+hundred milliseconds between reads is orders of magnitude below the cent these figures
+are shown to; the probe measured the gap at **3 base units, $0.00000003**. The visible
+failure needs a repayment to land mid-read, and pinning would trade that for a worse
+one: this runs on public endpoints with fallover, and a fallback node one block behind
+cannot answer at a pinned height, so the breakdown would start failing on exactly the
+flaky endpoints the fallover exists for. **Accepted residual: a transaction landing
+between two reads shows a mismatch until the next refresh.**
+
+**GHO (Codex's medium).** GHO's variable-debt token historically overrode `balanceOf`
+with a stkAAVE discount, which would make reconstructing debt from `scaled × index`
+overstate it. Settled by measurement rather than by argument: the deployed token has no
+discount machinery at all — `DISCOUNT_TOKEN()` and `getDiscountPercent()` both revert —
+and its own `totalSupply` equals `ceil(scaledTotalSupply × index)` **exactly**, across
+101,746,313.9 GHO. No change needed.
+
+### What this round is evidence of
+
+The two findings that mattered were both **decided by measuring the thing rather than
+reasoning about it**, and they went in opposite directions. The skip looked obviously
+worth keeping until the 134 ms was on screen, at which point it was obviously not. GHO
+looked like a real hazard until the totals reconciled to the unit, at which point it was
+not. Neither answer was available from first principles, and I had already argued myself
+into the wrong position on the first one.
+
+The invented selector is the sharper lesson, and it is the same shape as round 13's
+predecessor: a claim that _looked_ verified because it kept company with verified ones.
+Four correct constants next to a fifth do not make the fifth correct — and the fix is
+never to be more careful, it is to make the check executable.

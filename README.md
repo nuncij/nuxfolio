@@ -148,8 +148,10 @@ Note on DeFi: holdings held as ERC-20 receipt tokens — wstETH, syrupUSDC,
 stkAAVE, crvUSD and similar — **are** shown, because mechanically they are just
 tokens in the wallet. **Aave v3 borrowing is also shown**: collateral, debt and the
 health factor, read from the protocol's own accounting rather than inferred from
-tokens (ADR-026). What is still missing is per-token protocol detail (_which_ asset
-was borrowed), other lending protocols, LP composition and unclaimed rewards.
+tokens (ADR-026) — and, per market, **which assets** those totals are made of. Rows are
+priced by the market's own oracle, so they sum to the totals above them exactly
+(ADR-027). What is still missing is any lending protocol other than Aave v3, LP
+composition and unclaimed rewards.
 
 Adding a sixth chain is one registry entry plus `pnpm tokens:generate`.
 

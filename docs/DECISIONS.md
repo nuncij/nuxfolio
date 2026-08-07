@@ -1560,3 +1560,73 @@ collateral, so a supply-with-collateral-off position is invisible (F-03) — whi
 the field is `collateralValueUsd` and the milestone's promise is borrower risk rather
 than "your Aave positions". Per-token detail, other protocols, and any net figure are
 M5-2.
+
+## ADR-027 — Positions inside a market are priced by that market's own oracle
+
+**Context.** M5-2 breaks each Aave market's two headline figures into rows: which assets
+the wallet supplied, which it borrowed, how much of each. A row wants a value beside its
+amount — 4,123 USDe means little next to 671 USDC unless both carry a dollar figure.
+
+The obvious source is the one every other value on the page uses, DefiLlama (ADR-005).
+That is what the first review of this milestone recommended, with the rows labelled
+"estimated" to mark them as a different source from the totals above them.
+
+**Decision.** Rows are priced by the **market's own `AaveOracle`** — the same oracle
+that produced the totals — and the row values therefore **sum to those totals exactly**.
+
+**Why.** Because "exactly" turns out to be available, and it is worth more than
+consistency with the rest of the page. Measured on Ethereum mainnet on 2026-08-07, for a
+live borrower, at four consecutive blocks:
+
+| Figure     | Rows summed | `getUserAccountData` | Difference       |
+| ---------- | ----------- | -------------------- | ---------------- |
+| Collateral | $17,528.00  | $17,528.00           | **0 base units** |
+| Debt       | $8,064.46   | $8,064.46            | **0 base units** |
+
+A breakdown priced by DefiLlama would be off by a different fraction of a percent every
+block — small, real, and impossible for a reader to attribute to rounding rather than to
+a bug. A breakdown that adds up is not a nicety here: it is the evidence that the rows
+are the whole of the headline rather than a selection from it.
+
+**Rounding follows Aave's, at both steps.** A supplied balance floors when it is scaled
+and floors again when it is valued; a debt ceils at both. That second ceiling was
+measured rather than assumed: flooring the value division left the debt total **3 base
+units short — exactly one per borrowed row**. Aave rounds a debt up whenever it touches
+it, and matching only the first step leaves an invariant that is broken by an amount
+small enough to look like nothing.
+
+**The oracle address is derived, never configured.** It is read from each market's
+`PoolAddressesProvider` in the same batch as the balances, so it costs no extra round
+trip. The asymmetry that decided this: a stale _pool_ address stops answering and the
+read fails loudly, but a stale _oracle_ keeps returning plausible prices from a market
+nobody uses any more — the rows would still look right and would quietly stop adding up.
+
+**What this does not claim.**
+
+- **A row the oracle cannot price shows no figure**, not a zero. Aave's oracle answers 0
+  for a missing feed; carrying that through would turn a $17,000 collateral position into
+  a worthless one. The visible rows then fall short of the headline by that position, and
+  the row says so in words.
+- **The totals and the rows are two reads**, a few hundred milliseconds apart. Interest
+  accruing across that window is orders of magnitude below the cent these figures are
+  shown to; a repayment landing between them is a real mismatch until the next refresh.
+  Pinning both to one block would need an extra `eth_blockNumber` and would introduce a
+  worse failure — a fallback endpoint one block behind cannot answer at a pinned height,
+  so the breakdown would start failing on exactly the flaky public endpoints this runs
+  on. Accepted, not overlooked.
+- **Still no net total.** ADR-026's reasoning is unchanged: a net figure has to reconcile
+  a receipt token in the asset list, priced by DefiLlama, against collateral here priced
+  by Aave. Rows adding up to their own headline does not make the two headlines
+  combinable.
+
+**Consequences.** `decimals` and `symbol` are read from each underlying token rather than
+joined against the bundled list, so an unlisted underlying renders properly instead of
+being assumed to have 18 decimals — and MKR, which answers `symbol()` with a `bytes32`,
+is one of the 80 Ethereum reserves, so the name is the single sub-call allowed to fail.
+
+The breakdown is read for **every** detail-capable market, including one whose totals are
+both zero. An earlier version skipped those to save a call; measured, that call costs
+134 ms across all three Ethereum markets, and skipping it hid every supply with
+collateral switched off — the one position that is invisible to the totals by
+definition, and therefore the only one the breakdown alone can show. Paying the 134 ms
+closes the gap ADR-026 recorded as out of scope.

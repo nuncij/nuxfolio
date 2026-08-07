@@ -1,14 +1,17 @@
 'use client';
 
-import type { ProtocolAccountDto } from '@/domain/portfolio';
+import { Decimal } from 'decimal.js';
+
+import type { ProtocolAccountDto, ProtocolPositionDto } from '@/domain/portfolio';
 import { hasPosition, summarizeAccounts } from '@/domain/protocolAccount';
 
-import { formatHealthFactor } from '@/lib/format';
+import { formatHealthFactor, formatQuantity } from '@/lib/format';
 
 import { useMoney } from './DisplayProvider';
 
 /**
- * What the wallet owes a lending protocol, and how close it is to liquidation.
+ * What the wallet has in a lending protocol: supplied, borrowed, and how close it is to
+ * liquidation.
  *
  * **These figures are never added to the portfolio total.** They come from Aave's own
  * oracle rather than the price source the assets use, so they do not share a
@@ -35,12 +38,13 @@ export function LendingPanel({ accounts }: { accounts: readonly ProtocolAccountD
   const summary = summarizeAccounts(shown);
 
   return (
-    <section
-      aria-label="Lending positions"
-      className="rounded-xl border border-line bg-surface p-4"
-    >
+    <section aria-label="Lending markets" className="rounded-xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Borrowing</h2>
+        {/* Not "Borrowing": a wallet that only supplies, with collateral switched
+            off, now appears here too — and for it both headline figures are zero. */}
+        <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+          Lending markets
+        </h2>
         {/* The source is named, not implied. These are Aave's numbers, computed by
             Aave's oracle, which is why they reconcile with Aave's own interface and
             why they are not mixed into a total priced by someone else.
@@ -98,18 +102,144 @@ function MarketRow({ account }: { account: ProtocolAccountDto }) {
   }
 
   return (
-    <div className="grid gap-x-6 gap-y-1 sm:grid-cols-[1fr_auto_auto_auto] sm:items-baseline">
-      <span className="text-sm text-ink">{account.marketName}</span>
+    <>
+      <div className="grid gap-x-6 gap-y-1 sm:grid-cols-[1fr_auto_auto_auto] sm:items-baseline">
+        <span className="text-sm text-ink">{account.marketName}</span>
 
-      <Figure label="Collateral" value={money(account.collateralValueUsd)} />
-      <Figure label="Borrowed" value={money(account.borrowedValueUsd)} />
+        <Figure label="Collateral" value={money(account.collateralValueUsd)} />
+        <Figure label="Borrowed" value={money(account.borrowedValueUsd)} />
 
-      <div className="text-sm">
-        <span className="mr-2 text-xs text-ink-subtle uppercase">Health</span>
-        <HealthFactor value={account.healthFactor} />
+        <div className="text-sm">
+          <span className="mr-2 text-xs text-ink-subtle uppercase">Health</span>
+          <HealthFactor value={account.healthFactor} />
+        </div>
       </div>
+
+      <Breakdown account={account} />
+    </>
+  );
+}
+
+/**
+ * Which assets the two figures above are made of.
+ *
+ * Every row here is priced by the same market oracle that produced the totals, so the
+ * supplied rows marked as collateral sum to the collateral figure and the borrowed rows
+ * sum to the borrowed figure — exactly, to the base unit. That is the point of not
+ * pricing them with the app's own source, and it is asserted in
+ * `domain/protocolPosition.test.ts` against a whole market captured at one block.
+ *
+ * Two things qualify that. A row the oracle cannot price shows no figure at all rather
+ * than a zero, so the visible rows fall short of the headline by whatever that position
+ * is worth — the alternative being to call it worthless, which is worse. And the totals
+ * and the rows are two reads a few hundred milliseconds apart, so a repayment landing
+ * between them shows up as a mismatch until the next refresh; interest accrual over
+ * that window is far below the cent these figures are shown to.
+ *
+ * A missing breakdown is stated rather than left blank, and the two reasons it can be
+ * missing are not merged: a market that has no detail provider at all will never have
+ * one, while a read that failed may well work on the next load.
+ */
+function Breakdown({ account }: { account: ProtocolAccountDto }) {
+  const supplied = account.positions.filter((position) => !isZero(position.supplied));
+  const borrowed = account.positions.filter((position) => !isZero(position.borrowed));
+
+  if (account.positionsStatus === 'failed') {
+    return (
+      <p className="mt-1 text-xs text-caution">
+        The per-asset breakdown could not be read this time. The figures above are unaffected.
+      </p>
+    );
+  }
+
+  if (account.positionsStatus === 'unavailable') {
+    return (
+      <p className="mt-1 text-xs text-ink-subtle">
+        Nuxfolio has no verified detail provider for this market, so it cannot say which assets
+        these are.
+      </p>
+    );
+  }
+
+  if (supplied.length === 0 && borrowed.length === 0) {
+    return null;
+  }
+
+  return (
+    <dl className="mt-2 space-y-2 border-l border-line pl-3">
+      <PositionGroup label="Supplied" positions={supplied} side="supplied" />
+      <PositionGroup label="Borrowed" positions={borrowed} side="borrowed" />
+    </dl>
+  );
+}
+
+function PositionGroup({
+  label,
+  positions,
+  side,
+}: {
+  label: string;
+  positions: readonly ProtocolPositionDto[];
+  side: 'supplied' | 'borrowed';
+}) {
+  if (positions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <dt className="text-xs text-ink-subtle uppercase">{label}</dt>
+      {positions.map((position) => (
+        <dd key={`${side}:${position.asset}`}>
+          <PositionRow position={position} side={side} />
+        </dd>
+      ))}
     </div>
   );
+}
+
+function PositionRow({
+  position,
+  side,
+}: {
+  position: ProtocolPositionDto;
+  side: 'supplied' | 'borrowed';
+}) {
+  const money = useMoney();
+  const amount = side === 'supplied' ? position.supplied : position.borrowed;
+  const value = side === 'supplied' ? position.suppliedValueUsd : position.borrowedValueUsd;
+
+  return (
+    // Both figures right-aligned: amounts that line up on the decimal can be compared
+    // down the column, and the value lands under the market total it is part of.
+    <div className="grid gap-x-4 text-sm sm:grid-cols-[6rem_9rem_1fr] sm:items-baseline">
+      {/* An unlisted underlying still has an address, and an address is a true answer
+          where a guessed name would not be. */}
+      <span className="text-ink">{position.symbol ?? shortAddress(position.asset)}</span>
+      <span className="numeric text-ink-muted sm:text-right">{formatQuantity(amount)}</span>
+      {value === null ? (
+        // The market oracle answered zero, which means it has no price rather than that
+        // the asset is worthless. Rendering "$0.00" here would be off by the position.
+        <span className="text-xs text-ink-subtle sm:text-right">No price from the market</span>
+      ) : (
+        <span className="numeric text-ink sm:text-right">{money(value)}</span>
+      )}
+      {side === 'supplied' && !position.usedAsCollateral && (
+        // Why this row is absent from the collateral figure above it. Without the note
+        // the two numbers simply fail to add up, with nothing on screen to say why.
+        <span className="text-xs text-ink-subtle sm:col-start-3">Not used as collateral</span>
+      )}
+    </div>
+  );
+}
+
+/** Decimal, not `Number`: a quantity never passes through a float here (ADR-003). */
+function isZero(value: string): boolean {
+  return new Decimal(value).isZero();
+}
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 function Figure({ label, value }: { label: string; value: string }) {

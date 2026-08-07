@@ -177,6 +177,31 @@ export const portfolioAssetSchema = z.object({
 export type PortfolioAsset = z.infer<typeof portfolioAssetSchema>;
 
 /**
+ * One asset inside a lending market.
+ *
+ * Amounts and values are both priced by the market's own oracle, which is why they add
+ * back up to the account totals below exactly — see `domain/protocolPosition.ts`.
+ */
+export const protocolPositionSchema = z.object({
+  asset: z.string().min(1),
+  /** Read from the token itself; null when it has none that can be decoded. */
+  symbol: z.string().min(1).nullable(),
+  supplied: decimalString,
+  borrowed: decimalString,
+  /**
+   * False means this supply is outside the market's collateral total. Aave reports the
+   * flag, not the reason for it — the user may have switched it off, or the reserve may
+   * never have been collateral-eligible — so nothing here claims an intention.
+   */
+  usedAsCollateral: z.boolean(),
+  /** Null when the market oracle had no price — never 0 in that case. */
+  suppliedValueUsd: decimalString.nullable(),
+  borrowedValueUsd: decimalString.nullable(),
+});
+
+export type ProtocolPositionDto = z.infer<typeof protocolPositionSchema>;
+
+/**
  * A lending-protocol account, beside the assets rather than among them.
  *
  * Never summed into `totalValueUsd`. These figures come from the protocol's own
@@ -195,6 +220,14 @@ export const protocolAccountSchema = z.object({
   borrowedValueUsd: decimalString.nullable(),
   /** Unitless, 18 decimals. Null when the wallet has no debt in this market. */
   healthFactor: decimalString.nullable(),
+  /** Which assets the totals are made of. Empty unless `positionsStatus` is `ok`. */
+  positions: z.array(protocolPositionSchema),
+  /**
+   * Whether the breakdown could be produced — a separate read from the totals, so a
+   * market can report a good health factor beside a missing breakdown. `unavailable`
+   * is permanent; `failed` may work on the next load.
+   */
+  positionsStatus: z.enum(['ok', 'failed', 'unavailable']),
 });
 
 export type ProtocolAccountDto = z.infer<typeof protocolAccountSchema>;

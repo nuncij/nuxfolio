@@ -1,5 +1,7 @@
 import { Decimal } from 'decimal.js';
 
+import type { ProtocolPosition } from './protocolPosition';
+
 /**
  * What a wallet owes a lending protocol, and how close it is to liquidation.
  *
@@ -32,6 +34,29 @@ const NO_DEBT_SENTINEL = (2n ** 256n - 1n).toString();
 
 export type ProtocolAccountStatus = 'ok' | 'failed';
 
+/**
+ * Whether the per-asset breakdown could be produced, separately from whether the
+ * market's totals could.
+ *
+ * The two reads are different calls to different contracts, and one failing does not
+ * make the other wrong. A market whose totals are good but whose breakdown is missing
+ * should show the totals — collapsing the two into one status would throw away a
+ * perfectly good health factor because a second call timed out (review round 13, F5).
+ *
+ *  - `ok` — read, and the rows are the whole of it. An empty list here is a confirmed
+ *    absence, not an unasked question.
+ *  - `failed` — asked, and the market did not answer.
+ *  - `unavailable` — this market has no verified detail provider, so its breakdown is
+ *    permanently absent rather than temporarily. Two of the seven are in that state.
+ *
+ * There was briefly a fourth, `not-requested`, for markets whose totals came back at
+ * zero on both sides: the breakdown was skipped there to save a call. Measured, that
+ * call costs 134 ms across all three Ethereum markets — and skipping it hid every
+ * supply with collateral switched off, which is invisible to the totals by definition.
+ * Paying the 134 ms buys back both the position and the fourth state (round 13).
+ */
+export type PositionsStatus = 'ok' | 'failed' | 'unavailable';
+
 export type ProtocolAccount = {
   readonly chainId: number;
   readonly protocol: 'aave-v3';
@@ -57,6 +82,13 @@ export type ProtocolAccount = {
    * sentinel above — which the UI renders as "not applicable" rather than a number.
    */
   readonly healthFactor: string | null;
+  /**
+   * Which assets the totals above are made of, priced by the same oracle that
+   * computed them — so the rows add back up to the headline exactly. Empty whenever
+   * `positionsStatus` is not `ok`.
+   */
+  readonly positions: readonly ProtocolPosition[];
+  readonly positionsStatus: PositionsStatus;
 };
 
 /** What one market's raw `getUserAccountData` returns, before any scaling. */
@@ -78,6 +110,8 @@ export function toProtocolAccount(input: {
   marketId: string;
   marketName: string;
   raw: RawAccountData;
+  positions?: readonly ProtocolPosition[];
+  positionsStatus: PositionsStatus;
 }): ProtocolAccount {
   const { raw } = input;
 
@@ -90,6 +124,8 @@ export function toProtocolAccount(input: {
     collateralValueUsd: scale(raw.totalCollateralBase, BASE_CURRENCY_DECIMALS),
     borrowedValueUsd: scale(raw.totalDebtBase, BASE_CURRENCY_DECIMALS),
     healthFactor: toHealthFactor(raw.healthFactor),
+    positions: input.positions ?? [],
+    positionsStatus: input.positionsStatus,
   };
 }
 
@@ -98,6 +134,7 @@ export function failedProtocolAccount(input: {
   chainId: number;
   marketId: string;
   marketName: string;
+  positionsStatus: PositionsStatus;
 }): ProtocolAccount {
   return {
     chainId: input.chainId,
@@ -108,6 +145,8 @@ export function failedProtocolAccount(input: {
     collateralValueUsd: null,
     borrowedValueUsd: null,
     healthFactor: null,
+    positions: [],
+    positionsStatus: input.positionsStatus,
   };
 }
 
@@ -131,7 +170,14 @@ export function hasPosition(account: ProtocolAccount): boolean {
     // A failed read is worth showing precisely because it is not "no position".
     return true;
   }
-  return isPositive(account.collateralValueUsd) || isPositive(account.borrowedValueUsd);
+  return (
+    isPositive(account.collateralValueUsd) ||
+    isPositive(account.borrowedValueUsd) ||
+    // A supply with collateral switched off contributes to neither total, so without
+    // this clause the one wallet whose position is *only* visible in the breakdown
+    // would see an empty panel.
+    account.positions.length > 0
+  );
 }
 
 /**

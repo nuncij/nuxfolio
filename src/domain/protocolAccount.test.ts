@@ -10,6 +10,7 @@ import {
 } from './protocolAccount';
 
 const MARKET = { chainId: 1, marketId: '1:core', marketName: 'Aave v3 Core' };
+const READ = { ...MARKET, positionsStatus: 'ok' } as const;
 
 /** `uint256` max — what Aave returns as the health factor when there is no debt. */
 const NO_DEBT = (2n ** 256n - 1n).toString();
@@ -24,6 +25,8 @@ function account(overrides: Partial<ProtocolAccount> = {}): ProtocolAccount {
     collateralValueUsd: '0',
     borrowedValueUsd: '0',
     healthFactor: null,
+    positions: [],
+    positionsStatus: 'ok',
     ...overrides,
   };
 }
@@ -31,7 +34,7 @@ function account(overrides: Partial<ProtocolAccount> = {}): ProtocolAccount {
 describe('toProtocolAccount', () => {
   it('scales the base figures by 8 decimals, as Aave reports them', () => {
     const result = toProtocolAccount({
-      ...MARKET,
+      ...READ,
       // $100,000.00 collateral, $40,000.00 debt, in USD at 1e8.
       raw: {
         totalCollateralBase: '10000000000000',
@@ -49,7 +52,7 @@ describe('toProtocolAccount', () => {
     // The plan said ray (1e27) and review round 12 caught it: at 1e27 a real 1.04
     // renders as 0.00000000104. This is the test that pins the error.
     const result = toProtocolAccount({
-      ...MARKET,
+      ...READ,
       raw: {
         totalCollateralBase: '1',
         totalDebtBase: '1',
@@ -62,7 +65,7 @@ describe('toProtocolAccount', () => {
 
   it('keeps full precision on a figure that would lose digits as a float', () => {
     const result = toProtocolAccount({
-      ...MARKET,
+      ...READ,
       raw: {
         totalCollateralBase: '123456789012345678',
         totalDebtBase: '0',
@@ -103,7 +106,7 @@ describe('failedProtocolAccount', () => {
   it('reports absence, never zero', () => {
     // The distinction the whole type exists for: a read that did not answer says
     // nothing about the wallet, and must not render as "no debt".
-    const result = failedProtocolAccount(MARKET);
+    const result = failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' });
 
     expect(result.status).toBe('failed');
     expect(result.borrowedValueUsd).toBeNull();
@@ -121,8 +124,24 @@ describe('hasPosition', () => {
     expect(hasPosition(account({ collateralValueUsd: '5000' }))).toBe(true);
   });
 
+  it('is true for a supply the totals cannot see', () => {
+    // Collateral off contributes to neither figure, so the breakdown is the only
+    // evidence this wallet uses the market at all.
+    const position = {
+      asset: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+      symbol: 'WETH',
+      supplied: '9.08',
+      borrowed: '0',
+      usedAsCollateral: false,
+      suppliedValueUsd: '17528.01',
+      borrowedValueUsd: '0',
+    };
+
+    expect(hasPosition(account({ positions: [position] }))).toBe(true);
+  });
+
   it('is true for a failed read, because that is not "no position"', () => {
-    expect(hasPosition(failedProtocolAccount(MARKET))).toBe(true);
+    expect(hasPosition(failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' }))).toBe(true);
   });
 });
 
@@ -144,7 +163,7 @@ describe('summarizeAccounts', () => {
     // failed read into a smaller complete-looking debt figure (round 12, F-06).
     const summary = summarizeAccounts([
       account({ borrowedValueUsd: '40000' }),
-      failedProtocolAccount({ ...MARKET, marketId: '1:prime' }),
+      failedProtocolAccount({ ...MARKET, marketId: '1:prime', positionsStatus: 'failed' }),
     ]);
 
     expect(summary.borrowedValueUsd).toBe('40000');
@@ -154,8 +173,8 @@ describe('summarizeAccounts', () => {
 
   it('returns null debt when every market failed, not zero', () => {
     const summary = summarizeAccounts([
-      failedProtocolAccount(MARKET),
-      failedProtocolAccount({ ...MARKET, marketId: '1:prime' }),
+      failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' }),
+      failedProtocolAccount({ ...MARKET, marketId: '1:prime', positionsStatus: 'failed' }),
     ]);
 
     expect(summary.borrowedValueUsd).toBeNull();

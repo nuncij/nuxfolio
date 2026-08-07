@@ -307,3 +307,38 @@ After the probe and review round 12, honestly:
 - `totalValueUsd` is byte-identical to today for every existing test — asserted, so this
   milestone cannot quietly move a number that has meant one thing for five milestones.
 - No net total appears anywhere in v1.
+
+---
+
+## 9. M5-2 as built — where it departed from this plan
+
+Three of this plan's positions did not survive contact with the chain.
+
+**§5a said pricing would not be needed at all.** "This also removes the need to price
+anything in v1: no `PriceRef`, no second pricing path." Half right. M5-2 does put a
+dollar figure on every row, but not through the app's price provider — through the
+market's own `AaveOracle`, in the same batch as the balances. So there is still no
+`PriceRef` and no second pricing path; what there is, unexpectedly, is a breakdown that
+sums to its headline **to the base unit**, measured at four consecutive blocks. That
+turned out to be worth more than source-consistency with the rest of the page. ADR-027
+records why, including the rounding it forced: a debt ceils when it is scaled _and_
+again when it is valued, which flooring the second step gets wrong by exactly one base
+unit per borrowed row.
+
+**§7.1 said a supplier with collateral off "sees nothing".** True at the account level
+and now fixed, though not deliberately. The breakdown was at first read only for markets
+whose totals were non-zero, to save a call — which left that supplier invisible, since a
+collateral-off supply contributes to neither total. Review round 13 pushed back and the
+call was measured at **134 ms across all three Ethereum markets**. It is now always read,
+`hasPosition` consults the breakdown, and that wallet appears. The panel heading changed
+from "Borrowing" to "Lending markets" for the same reason: it can now show a wallet whose
+two headline figures are both zero.
+
+**§7.3 asked how three markets on one chain render without becoming a wall.** They do not
+have to: Prime and EtherFi report a confirmed-empty breakdown for the benchmark borrower,
+and a market with nothing in it is still absent from the panel entirely. Only markets the
+wallet actually uses cost any vertical space, and each brings at most a handful of rows.
+
+**Still true, and still deliberate.** No net total (ADR-026 and ADR-027 both). Two of the
+seven markets — Optimism and BNB — report totals and a health factor but no breakdown,
+and say so in words rather than showing an empty list.
