@@ -33,8 +33,7 @@ describe('rayMulSupply', () => {
     // Measured: half-up gives 9083298102417584031, one wei above what the aToken
     // reports. Aave's TokenMath floors an aToken balance, and matching it is the
     // difference between reconciling with Aave and nearly reconciling.
-    const halfUp =
-      (LIVE.wethScaledSupply * LIVE.wethNormalizedIncome + RAY / 2n) / RAY;
+    const halfUp = (LIVE.wethScaledSupply * LIVE.wethNormalizedIncome + RAY / 2n) / RAY;
     expect(halfUp).toBe(LIVE.wethActualBalance + 1n);
     expect(rayMulSupply(LIVE.wethScaledSupply, LIVE.wethNormalizedIncome)).toBe(
       LIVE.wethActualBalance,
@@ -64,7 +63,7 @@ describe('rayMulDebt', () => {
 });
 
 describe('the stored index is not the one to use', () => {
-  it('understates a supply, always in the protocol's favour', () => {
+  it("understates a supply, always in the protocol's favour", () => {
     // `Pool.getReserveData` reports the index as of the last time the reserve was
     // touched; the aToken accrues to now. Review round 13 caught the earlier version
     // of this file using the stored one after "verifying" it against a reserve that
