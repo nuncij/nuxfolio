@@ -1495,10 +1495,17 @@ them is not in the asset list at all.
 **Decision.** `protocolAccounts` is a separate array on `Portfolio`, rendered in its own
 panel, and **no arithmetic combines it with `totalValueUsd`**.
 
-**Why no net total.** The obvious formula — `total − debt` — is wrong here, and the
-plan proposed it before review round 12 worked an example (F-02). Aave v3 receipt
-tokens are absent from the bundled lists, so supplied collateral is invisible to the
-total. A wallet supplying $100,000 and borrowing $40,000 it still holds would report:
+**Why no net total.** The obvious formula — `total − debt` — cannot be trusted here,
+and the plan proposed it before review round 12 worked an example (F-02).
+
+The reason recorded at first was that Aave v3 receipt tokens are absent from the
+bundled lists, making collateral invisible to the total. **That was wrong**, and
+correcting it on 2026-08-07 made the decision better founded rather than worse: 53
+tokens named `Aave v3 …` _are_ on the lists, so collateral is often visible. It is the
+**inconsistency** that is fatal. `total − debt` returns the right answer for a wallet
+whose receipt token happens to be listed, and is wrong by the entire collateral for one
+whose is not — and nothing at runtime distinguishes the two. Taking the invisible case,
+a wallet supplying $100,000 and borrowing $40,000 it still holds would report:
 
 | Figure          | Value       |
 | --------------- | ----------- |
@@ -1506,11 +1513,16 @@ total. A wallet supplying $100,000 and borrowing $40,000 it still holds would re
 | `total − debt`  | **$0**      |
 | Actually worth  | **$60,000** |
 
-The inputs were all correct. The error was subtracting a liability from a total that
-never contained its matching asset — arithmetic across two scopes. No measurement
-catches that; only working an example end to end does. A net total becomes computable
-in M5-2, when per-token collateral is read and priced by the same source as everything
-else.
+The inputs were all correct. The error was arithmetic whose validity depends on data
+the formula never inspects. A net total becomes computable in M5-2, when per-token
+collateral is read directly and priced by the same source as everything else — at
+which point the answer no longer depends on whether a bundled list happens to contain
+a particular receipt token.
+
+**The panel's wording carries this.** It says collateral _may also appear above as a
+receipt token_, not "not included in the total above". The latter was true of the
+figures — nothing here is summed into the total — and false about the money, which
+invited precisely the addition it meant to prevent.
 
 **Why Aave's own figures, not ours re-priced.** `getUserAccountData` returns money in
 Aave's base currency (measured: USD at 1e8, through each market's own oracle). That is

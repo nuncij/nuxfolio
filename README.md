@@ -28,6 +28,16 @@ instead of absent:
 bundled list, assets with no price at all, and prices older than expected. Each is a
 different problem, so each is reported as a different thing.</sub>
 
+### Lending positions, beside the assets rather than inside them
+
+![A wallet's Aave v3 borrowing shown beneath its portfolio total](docs/screenshots/lending.png)
+
+<sub>A real borrower. Aave's own figures — collateral, debt, and the health factor with
+the one sentence that makes it mean anything. They are never summed into the total
+above, because they are priced by Aave's oracle rather than the app's price source; and
+the note says collateral <em>may</em> also appear above as a receipt token, because for
+many wallets it already does.</sub>
+
 <details>
 <summary>Light theme, and on a phone</summary>
 

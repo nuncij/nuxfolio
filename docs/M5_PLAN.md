@@ -33,19 +33,34 @@ is not a token balance at all.
 Two things checked against the real repository rather than assumed, because the plan's
 correctness depends on both:
 
-**The double-count trap is real but narrow.** Scanning all 12,367 bundled tokens on
-2026-08-06:
+**The double-count trap — measured wrongly the first time, corrected 2026-08-07.**
 
-| What                                           | In the bundled lists? |
-| ---------------------------------------------- | --------------------- |
-| Aave **v3** supplied receipts (`aEthUSDC`, …)  | **0** — not listed    |
-| Aave debt tokens (`variableDebt…`)             | **0** — not listed    |
-| Aave **v2**-era receipts (`AUSDC`, `AWETH`, …) | **34 present**        |
-| Liquid-staking receipts (`wstETH`, `rETH`, …)  | present, correctly    |
+The original measurement matched token **symbols** against Aave's naming convention
+(`aEthUSDC`, `aBasUSDC`) and reported **0** v3 receipts in the bundled lists. That was
+false. The lists use their own symbol convention — the v3 aToken
+`0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8` appears as symbol `AWETH`, name
+`Aave v3 WETH` — so the search tested a guess about naming rather than the thing
+itself. Re-measured by name across all 12,367 tokens:
 
-So: reading Aave **v3** supplied balances adds genuinely new information with no
-double count. Reading Aave **v2** would double-count on the chains where those 34
-entries live. That decides the scope in §5 on its own.
+| What                                          | In the bundled lists? |
+| --------------------------------------------- | --------------------- |
+| Tokens named `Aave v3 …`                      | **53**                |
+| All Aave-named receipts (v2 and v3)           | **153**               |
+| Aave debt tokens (`variableDebt…`)            | 0 — non-transferable  |
+| Liquid-staking receipts (`wstETH`, `rETH`, …) | present, correctly    |
+
+**How it was caught:** by looking at a screenshot of the finished feature. A real
+borrower's largest asset read `AWETH $17,365.43` while the panel beneath it reported
+`collateral $17,376.14` — the same position, twice, about $11 apart because two price
+sources valued it. No test would have found this; the numbers are individually correct.
+
+**What it changes.** Debt is still new information everywhere — debt tokens are
+non-transferable and appear in no list. Collateral is _sometimes_ already in the asset
+total and sometimes not, with nothing in the data to say which. That makes the decision
+in §4 stronger rather than weaker, and it makes the panel's wording load-bearing: it
+now says collateral **may also appear above as a receipt token**, because the earlier
+"not included in the total above" invited exactly the addition it was trying to
+prevent.
 
 **Debt is new information everywhere.** Debt tokens are non-transferable and appear in
 no list, so nothing in the product currently accounts for them at all.
@@ -110,9 +125,12 @@ The first draft of this plan recommended `netValueUsd = totalValueUsd −
 borrowedValueUsd`. **That formula is wrong**, and the review caught it before any code
 existed (round 12, F-02).
 
-Why it is wrong is specific to v1's scope. Aave v3 receipt tokens are not in the
-bundled lists (§2), so **supplied collateral is invisible to `totalValueUsd`**. Take
-the plan's own motivating wallet — supplies $100,000, borrows $40,000, keeps the
+The reason is not the one first given here. That said collateral is _invisible_ to
+`totalValueUsd`; §2 now shows it is often visible. The real problem is that it is
+**inconsistently** visible — 53 v3 receipts are listed and many are not, and nothing
+distinguishes the two cases at runtime. So the formula is correct for a wallet whose
+receipt token happens to be on a list, and wrong by the entire collateral for one
+whose is not. Take the invisible case — supplies $100,000, borrows $40,000, keeps the
 borrowed funds:
 
 | Figure                            | Value       |
@@ -121,8 +139,10 @@ borrowed funds:
 | `netValueUsd` by the old formula  | **$0**      |
 | What the wallet is actually worth | **$60,000** |
 
-And if the borrowed funds had left the wallet, it would report **−$40,000**. The
-formula subtracts a liability from a total that never included its matching asset.
+And if the borrowed funds had left the wallet, it would report **−$40,000**. In the
+_visible_ case the same formula returns the right answer. A figure that is correct for
+some wallets and silently wrong for others — with no way to tell them apart — is worse
+than no figure at all.
 
 **Decision: option (d) — v1 ships no net total at all.** `totalValueUsd` keeps its
 meaning untouched, and Aave's figures appear as separately sourced facts in their own

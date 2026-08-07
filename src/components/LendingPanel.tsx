@@ -10,12 +10,18 @@ import { useMoney } from './DisplayProvider';
 /**
  * What the wallet owes a lending protocol, and how close it is to liquidation.
  *
- * **These figures are never added to the portfolio total**, and the panel says so.
- * Two independent reasons: they come from Aave's own oracle rather than the price
- * source the assets use, and the collateral behind them is invisible to the asset
- * list, so a subtraction would cross two scopes. Review round 12 worked the example —
- * a wallet supplying $100k and borrowing $40k would report a net of $0 against a true
- * $60k. A wrong headline is worse than an absent one.
+ * **These figures are never added to the portfolio total.** They come from Aave's own
+ * oracle rather than the price source the assets use, so they do not share a
+ * denominator with anything above them.
+ *
+ * And no net-of-debt figure is derived — for a reason sharper than the one first
+ * written here. The original said collateral is *invisible* to the asset total.
+ * Measuring properly showed 53 Aave v3 receipt tokens are on the bundled lists, so
+ * collateral is often visible, under a name like "Aave v3 WETH". But not always, and
+ * nothing in the data says which case a wallet is in. `total − debt` is therefore
+ * correct when the receipt token happens to be listed and wrong by the entire
+ * collateral when it is not. A figure that is right for some wallets and silently
+ * wrong for others is worse than no figure. See ADR-026.
  *
  * The panel is absent entirely when the wallet uses no lending market. A row of
  * zeroes would be a claim; nothing is the truth.
@@ -37,9 +43,16 @@ export function LendingPanel({ accounts }: { accounts: readonly ProtocolAccountD
         <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Borrowing</h2>
         {/* The source is named, not implied. These are Aave's numbers, computed by
             Aave's oracle, which is why they reconcile with Aave's own interface and
-            why they are not mixed into a total priced by someone else. */}
+            why they are not mixed into a total priced by someone else.
+
+            The second clause took a real screenshot to get right. "Not included in
+            the total above" was true of these *figures* — nothing here is summed into
+            the total — and false about the money: 53 Aave v3 receipt tokens are on the
+            bundled lists, so a wallet's collateral is often already counted above
+            under a name like "Aave v3 WETH". The old wording invited exactly the
+            addition it was trying to prevent. */}
         <p className="text-xs text-ink-subtle">
-          Reported by Aave · not included in the total above
+          Reported by Aave · collateral may also appear above as a receipt token
         </p>
       </div>
 
