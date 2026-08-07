@@ -109,8 +109,9 @@ value is ever sent to the browser.
   withheld whenever it cannot be stated honestly.
 - Shows figures in US dollars or euros, converted at the ECB reference rate with
   that rate's own date named.
-- States what the portfolio _is_: concentration, what the value is designed to
-  track, and how much of it sits on one network.
+- Reads lending positions from Aave v3 — collateral, debt and the health factor —
+  across seven markets on five chains, shown beside the wallet's assets and never
+  added into their total, because they are priced by Aave's own oracle (ADR-026).
 - Sorts by value or by name, in both directions, with the choice carried in the URL so
   a sorted view can be shared or reloaded.
 - Renders loading, empty, partial-data, unpriced, rate-limited and error states.
@@ -135,9 +136,10 @@ decision.
 
 Note on DeFi: holdings held as ERC-20 receipt tokens — wstETH, syrupUSDC,
 stkAAVE, crvUSD and similar — **are** shown, because mechanically they are just
-tokens in the wallet. What is not shown is anything that requires reading a
-protocol's own accounting: lending debt, health factors, LP compositions and
-unclaimed rewards. That is Phase 3.
+tokens in the wallet. **Aave v3 borrowing is also shown**: collateral, debt and the
+health factor, read from the protocol's own accounting rather than inferred from
+tokens (ADR-026). What is still missing is per-token protocol detail (_which_ asset
+was borrowed), other lending protocols, LP composition and unclaimed rewards.
 
 Adding a sixth chain is one registry entry plus `pnpm tokens:generate`.
 
@@ -149,6 +151,9 @@ what is known:
 - The headline figure is a **subtotal of priced assets**, labelled as such. If
   nothing could be priced it shows as unavailable — never as `$0.00`, which would
   be a claim that the wallet is worthless.
+- A lending market with no position renders as **nothing**, a market that could not
+  be read renders as "Could not be read", and only a successful read shows a figure.
+  A row of zeros would claim the wallet has no debt when nobody managed to ask.
 - Percentages are shares of that priced subtotal. An unpriced asset gets no
   share rather than a misleading `0.00%`.
 - Old, low-confidence, or undated quotes are **kept and flagged**, not silently
@@ -298,9 +303,14 @@ callers share one bucket with a higher ceiling. See ADR-008.
    intent: a token on the bundled list is always trusted, and the confusable map is a
    curated subset of Unicode rather than all of it.
 5. No persistence and no history — every load is a live read.
-6. DeFi positions that require reading a protocol's own accounting (debt, health
-   factors, LP composition, unclaimed rewards) are not shown. Receipt tokens held
-   in the wallet are.
+6. Protocol accounting is read for **Aave v3 only**, and only at account level:
+   total collateral, total debt and the health factor. Which asset was borrowed, any
+   other lending protocol, LP composition and unclaimed rewards are not read. Aave
+   reports collateral rather than everything supplied, so a supply-with-collateral-off
+   position is invisible — the panel is labelled borrowing for that reason.
+7. No net-of-debt figure is computed anywhere. Aave's receipt tokens are absent from
+   the bundled lists, so the collateral behind a debt is invisible to the asset total,
+   and subtracting one from the other would cross two scopes (ADR-026).
 
 ## Testing
 
