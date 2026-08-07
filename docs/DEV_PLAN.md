@@ -143,7 +143,9 @@ go-public checklist names Nuxfolio as a deliberate exception.
 | ~~ENS names rejected~~                                                          | ✅ M2-4                                                                        |
 | ~~Token lists age invisibly~~                                                   | ✅ M2-5(a) warns, M2-5(b) refreshes weekly behind a drift guard                |
 | ~~No remote, no deployment (CI file exists, inactive)~~                         | ✅ M2-6/7 — on GitHub, live on the owner's VPS (ADR-018)                       |
-| Protocol accounting (debt, rewards, LP) not read                                | M5                                                                             |
+| ~~Protocol accounting: debt and liquidation risk not read~~                     | ✅ M5-1, 2026-08-07 — Aave v3 borrower state (ADR-026)                         |
+| Per-token protocol detail, other protocols, LP composition, unclaimed rewards   | M5-2 — `M5_PLAN.md` §5 explains why v1 stopped at account level                |
+| Collateral is inconsistently visible in the asset total (53 v3 receipts listed) | ADR-026 — why no net-of-debt figure exists; resolved by M5-2                   |
 | ~~Alchemy path never exercised live~~                                           | ✅ measured live 2026-08-03 and removed again — see Part 5                     |
 
 ---
