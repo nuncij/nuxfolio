@@ -33,10 +33,11 @@ different problem, so each is reported as a different thing.</sub>
 ![A wallet's Aave v3 borrowing shown beneath its portfolio total](docs/screenshots/lending.png)
 
 <sub>A real borrower. Aave's own figures — collateral, debt, and the health factor with
-the one sentence that makes it mean anything. They are never summed into the total
-above, because they are priced by Aave's oracle rather than the app's price source; and
-the note says collateral <em>may</em> also appear above as a receipt token, because for
-many wallets it already does.</sub>
+the one sentence that makes it mean anything — broken down into the assets they are made
+of. The rows are priced by the same oracle as the totals, so they add up to them exactly.
+None of it is summed into the portfolio total above, because that is priced by a
+different source; and the note says collateral <em>may</em> also appear above as a
+receipt token, because for many wallets it already does.</sub>
 
 <details>
 <summary>Light theme, and on a phone</summary>
@@ -119,9 +120,11 @@ value is ever sent to the browser.
   withheld whenever it cannot be stated honestly.
 - Shows figures in US dollars or euros, converted at the ECB reference rate with
   that rate's own date named.
-- Reads lending positions from Aave v3 — collateral, debt and the health factor —
-  across seven markets on five chains, shown beside the wallet's assets and never
-  added into their total, because they are priced by Aave's own oracle (ADR-026).
+- Reads lending positions from Aave v3 — collateral, debt, the health factor, and
+  which assets each of those is made of — across seven markets on five chains. Shown
+  beside the wallet's assets and never added into their total, because they are priced
+  by Aave's own oracle (ADR-026); the per-asset rows are priced by that same oracle, so
+  they sum to the totals above them to the base unit (ADR-027).
 - Sorts by value or by name, in both directions, with the choice carried in the URL so
   a sorted view can be shared or reloaded.
 - Renders loading, empty, partial-data, unpriced, rate-limited and error states.
@@ -315,14 +318,18 @@ callers share one bucket with a higher ceiling. See ADR-008.
    intent: a token on the bundled list is always trusted, and the confusable map is a
    curated subset of Unicode rather than all of it.
 5. No persistence and no history — every load is a live read.
-6. Protocol accounting is read for **Aave v3 only**, and only at account level:
-   total collateral, total debt and the health factor. Which asset was borrowed, any
-   other lending protocol, LP composition and unclaimed rewards are not read. Aave
-   reports collateral rather than everything supplied, so a supply-with-collateral-off
-   position is invisible — the panel is labelled borrowing for that reason.
-7. No net-of-debt figure is computed anywhere. Aave's receipt tokens are absent from
-   the bundled lists, so the collateral behind a debt is invisible to the asset total,
-   and subtracting one from the other would cross two scopes (ADR-026).
+6. Protocol accounting is read for **Aave v3 only** — no other lending protocol, no LP
+   composition, no unclaimed rewards, not even Aave's own. Worse than the gap itself:
+   **the page does not say so.** A wallet with a Compound or Morpho position sees a
+   lending panel that looks complete and is not. That is a rule this project set for
+   itself and has not yet met; it is the next thing to fix, tracked as M5-3.
+7. No net-of-debt figure is computed anywhere — and the reason first written here was
+   itself wrong. It said Aave's receipt tokens are absent from the bundled lists;
+   measuring found 53 of them present. The real obstacle is the **inconsistency**:
+   `total − debt` is right for a wallet whose receipt token happens to be listed and
+   wrong by the entire collateral for one whose is not, with nothing at runtime to tell
+   the two apart (ADR-026). M5-2 made the rows inside a market reconcile exactly, which
+   does not make the two page-level totals combinable (ADR-027).
 
 ## Testing
 

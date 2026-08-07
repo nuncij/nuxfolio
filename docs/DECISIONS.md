@@ -1514,10 +1514,16 @@ a wallet supplying $100,000 and borrowing $40,000 it still holds would report:
 | Actually worth  | **$60,000** |
 
 The inputs were all correct. The error was arithmetic whose validity depends on data
-the formula never inspects. A net total becomes computable in M5-2, when per-token
-collateral is read directly and priced by the same source as everything else — at
-which point the answer no longer depends on whether a bundled list happens to contain
-a particular receipt token.
+the formula never inspects.
+
+> **This ADR predicted its own resolution, and the prediction was wrong.** It said a net
+> total "becomes computable in M5-2, when per-token collateral is read directly and
+> priced by the same source as everything else". M5-2 shipped on 2026-08-07 and does read
+> per-token collateral — but prices it with **Aave's** oracle rather than the app's,
+> because that is what makes the rows reconcile with the totals above them (ADR-027). So
+> the two page-level figures still do not share a denominator, and the receipt-token
+> problem is untouched: a net total remains uncomputable, now for a reason this ADR
+> chose rather than one it inherited. Tracked as M5-8.
 
 **The panel's wording carries this.** It says collateral _may also appear above as a
 receipt token_, not "not included in the total above". The latter was true of the

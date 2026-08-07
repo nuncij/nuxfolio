@@ -342,3 +342,14 @@ wallet actually uses cost any vertical space, and each brings at most a handful 
 **Still true, and still deliberate.** No net total (ADR-026 and ADR-027 both). Two of the
 seven markets — Optimism and BNB — report totals and a health factor but no breakdown,
 and say so in words rather than showing an empty list.
+
+**§6's coverage rule is not met, and that is a defect rather than a scope choice.** The
+rule reads: "Reading Aave and not Compound means a wallet can have positions Nuxfolio
+cannot see. The response says which protocols were checked, in the same spirit as
+`coverage: 'token-list'`." Nothing on the page says it. Naming Aave as the _source_ of
+these figures is a different claim from telling a reader that Compound, Morpho and Spark
+were never looked at — the first is attribution, the second is coverage, and only the
+second stops the panel reading as complete. Tracked as M5-3, and it is next.
+
+**Unclaimed rewards were in scope and are absent.** §5's table put rewards in the Aave
+adapter's "full shape". No `RewardsController` read exists. Tracked as M5-4.
