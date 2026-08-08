@@ -167,3 +167,62 @@ describe('selectPortfolioViewState', () => {
     expect(state).toMatchObject({ kind: 'error', retryable });
   });
 });
+
+describe('a wallet whose only holding is held by a protocol', () => {
+  /**
+   * Verified against a real Arbitrum staker on 2026-08-08: `0x75DFC877…51b0` holds no
+   * token any balance read can see, and 43,840 crvUSDC — about $45,000 — staked in
+   * Convex, whose reward contract owns the LP. The page told it "No assets found".
+   */
+  const staked = {
+    positionId: '42161:0xbfee9f3e015adc754066424aed535313dc764116',
+    chainId: 42161,
+    protocol: 'convex' as const,
+    stakedToken: '0xec090cf6DD891D2d014beA6edAda6e05E025D93d',
+    symbol: 'crvUSDC',
+    amount: '43840.048283862444576459',
+    valueUsd: '45035.50811441',
+    rewards: [],
+  };
+
+  it('is not empty, however little the balance read found', () => {
+    const state = selectPortfolioViewState({
+      requested: true,
+      loading: false,
+      data: {
+        scope: 'chain',
+        portfolio: portfolio({ assetCount: 0, pricedAssetCount: 0, stakedPositions: [staked] }),
+      },
+      error: null,
+    });
+
+    expect(state.kind).not.toBe('empty');
+  });
+
+  it('is still empty when nothing is held anywhere', () => {
+    const state = selectPortfolioViewState({
+      requested: true,
+      loading: false,
+      data: { scope: 'chain', portfolio: portfolio({ assetCount: 0, pricedAssetCount: 0 }) },
+      error: null,
+    });
+
+    expect(state.kind).toBe('empty');
+  });
+
+  it('is not empty when the staking read failed, because it cannot say', () => {
+    // The one state where the wallet might hold something and the page does not know.
+    // "Nothing here" is the wrong sentence for a question that was not answered.
+    const state = selectPortfolioViewState({
+      requested: true,
+      loading: false,
+      data: {
+        scope: 'chain',
+        portfolio: portfolio({ assetCount: 0, pricedAssetCount: 0, stakedStatus: 'failed' }),
+      },
+      error: null,
+    });
+
+    expect(state.kind).not.toBe('empty');
+  });
+});

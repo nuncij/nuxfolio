@@ -1819,11 +1819,13 @@ the failure this product exists to avoid. The panel says which way it goes.
   rewards. The field exists and is always empty, with the reason next to it.
 - **A balance left in a shut-down pool is not shown.** It is an unfinished withdrawal
   rather than a position.
-- **The "wallet holds something" path is covered by fixtures, not by a live staker.** No
-  free RPC endpoint available to this project will answer `eth_getLogs`, so no real
-  staking wallet could be found to point the reader at. The registry decode, the
-  shut-down filter and the sweep _are_ verified live; the decode of a non-zero balance is
-  not. That is the weakest link in this feature and it is recorded as such.
+- ~~**The "wallet holds something" path is covered by fixtures, not by a live staker.**~~
+  **Closed on 2026-08-08.** `eth_getLogs` turns out to be refused per endpoint rather
+  than universally — `arb1.arbitrum.io/rpc` answers it — and the sidechain reward pool is
+  itself an ERC-20 minted to the staker, so its `Transfer` events name holders directly.
+  That found `0x75DFC877…51b0` in Arbitrum pool 16, and the reader reproduced its balance
+  **to the wei**: `43840048283862444576459` on chain against `43840.048283862444576459`
+  on the wire, valued at $45,035.51.
 
 **Addendum, same day — this shipped broken on Arbitrum.** The `Booster` returns a
 **different struct per deployment**, and the first version decoded both as Ethereum's:
@@ -1847,6 +1849,22 @@ pinned by tests against words captured from the live contracts.
 This is the third time in milestone 5 that a contract interface differed from the one
 recalled — after Aave's 3.2 struct and an invented selector — and the second time the
 same lesson landed: **the shape is per deployment, not per protocol.**
+
+**Second addendum — closing the verification gap found a worse bug than the one it was
+looking for.** That staker holds _nothing_ a balance read can see: zero tokens on
+Arbitrum, and $45,035 in one Convex pool. The API returned the position correctly. The
+page said **"No assets found"**.
+
+`deriveViewState` had classified a wallet as empty on `assetCount === 0` alone, which was
+the same thing as "holds nothing" until this milestone and stopped being so the moment a
+protocol could hold something on the wallet's behalf. The single wallet this whole
+feature exists for was the one wallet it could not show — and it went unnoticed because
+every wallet tested until then had a token balance too. `empty` now means nothing
+anywhere: no assets, no lending position, no stake, and no _failed_ staking read, since
+that is the state where the page cannot say.
+
+Fixture tests would never have caught it. The fixtures were right; the composition was
+not, and only a real wallet with that exact shape exposed it.
 
 ## ADR-031 — No `PositionProvider` interface; one shared status instead
 

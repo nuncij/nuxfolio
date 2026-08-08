@@ -71,6 +71,14 @@ export function AssetTable({
     [assets, sortKey, direction],
   );
   const groups = useMemo(() => groupAssetsForDisplay(sorted), [sorted]);
+
+  // A wallet can now reach this view with nothing in the table: its only holding may be
+  // one a protocol keeps for it, which is what milestone 5 added. A header with no rows
+  // under it is a table promising data it does not have.
+  if (assets.length === 0) {
+    return null;
+  }
+
   const columnCount = 7 + (showChain ? 1 : 0) + (showWallet ? 1 : 0);
 
   /**

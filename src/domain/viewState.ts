@@ -1,4 +1,5 @@
 import type { AggregatePortfolio, ApiError, Portfolio } from './portfolio';
+import { hasPosition } from './protocolAccount';
 
 /**
  * The dashboard's state machine, as a pure function.
@@ -66,7 +67,7 @@ export function selectPortfolioViewState(input: {
 
   const counts = countAssets(input.data);
 
-  if (counts.assetCount === 0) {
+  if (counts.assetCount === 0 && !holdsSomethingElsewhere(input.data)) {
     return { kind: 'empty', data: input.data };
   }
   if (counts.pricedAssetCount === 0) {
@@ -78,4 +79,29 @@ export function selectPortfolioViewState(input: {
 function countAssets(data: PortfolioData): { assetCount: number; pricedAssetCount: number } {
   const source = data.scope === 'chain' ? data.portfolio : data.aggregate;
   return { assetCount: source.assetCount, pricedAssetCount: source.pricedAssetCount };
+}
+
+/**
+ * Whether a protocol holds something for this wallet, whatever its token balances say.
+ *
+ * `empty` used to mean "no assets", which was the same thing until milestone 5. It is
+ * not any more: a wallet can hold a Convex position — the LP is owned by Convex's reward
+ * contract — or an Aave position with no receipt token, and see a balance read return
+ * nothing at all. Verified against a real staker on 2026-08-08 whose entire visible
+ * portfolio was empty while $45,035 sat in one Arbitrum pool, and who was shown
+ * "No assets found".
+ *
+ * A failed staking read counts too. It is the one state where the wallet might hold
+ * something and the page cannot say, which is precisely when "nothing here" is the
+ * wrong sentence.
+ */
+function holdsSomethingElsewhere(data: PortfolioData): boolean {
+  const chains = data.scope === 'chain' ? [data.portfolio] : data.aggregate.chains;
+
+  return chains.some(
+    (chain) =>
+      chain.protocolAccounts.some(hasPosition) ||
+      chain.stakedPositions.length > 0 ||
+      chain.stakedStatus === 'failed',
+  );
 }
