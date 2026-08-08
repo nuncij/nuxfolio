@@ -41,6 +41,11 @@ export type ProtocolPosition = {
    * that appears to be missing from the headline above it.
    */
   readonly usedAsCollateral: boolean;
+  /**
+   * The receipt token this supply is held as, so a caller can tell whether the wallet's
+   * own asset list already counts it (ADR-029).
+   */
+  readonly aTokenAddress: string;
   /** Null when the market oracle had no price, never 0 in that case. */
   readonly suppliedValueUsd: string | null;
   readonly borrowedValueUsd: string | null;
@@ -54,6 +59,7 @@ export type RawPosition = {
   readonly supplied: bigint;
   readonly borrowed: bigint;
   readonly usedAsCollateral: boolean;
+  readonly aTokenAddress: string;
   readonly priceBase: bigint | null;
 };
 
@@ -66,6 +72,7 @@ export function toProtocolPosition(raw: RawPosition): ProtocolPosition {
     supplied: formatBaseUnits(raw.supplied, raw.decimals),
     borrowed: formatBaseUnits(raw.borrowed, raw.decimals),
     usedAsCollateral: raw.usedAsCollateral,
+    aTokenAddress: raw.aTokenAddress,
     suppliedValueUsd: value(raw.supplied, raw.priceBase, unit, floorDiv),
     borrowedValueUsd: value(raw.borrowed, raw.priceBase, unit, ceilDiv),
   };

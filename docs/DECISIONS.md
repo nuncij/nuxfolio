@@ -1516,14 +1516,18 @@ a wallet supplying $100,000 and borrowing $40,000 it still holds would report:
 The inputs were all correct. The error was arithmetic whose validity depends on data
 the formula never inspects.
 
-> **This ADR predicted its own resolution, and the prediction was wrong.** It said a net
-> total "becomes computable in M5-2, when per-token collateral is read directly and
-> priced by the same source as everything else". M5-2 shipped on 2026-08-07 and does read
-> per-token collateral — but prices it with **Aave's** oracle rather than the app's,
-> because that is what makes the rows reconcile with the totals above them (ADR-027). So
-> the two page-level figures still do not share a denominator, and the receipt-token
-> problem is untouched: a net total remains uncomputable, now for a reason this ADR
-> chose rather than one it inherited. Tracked as M5-8.
+> **Superseded on 2026-08-08 by ADR-029, and this ADR's own prediction was wrong along
+> the way.** It said a net total "becomes computable in M5-2, when per-token collateral
+> is read directly and priced by the same source as everything else". M5-2 does read
+> per-token collateral but prices it with **Aave's** oracle, not the app's — so the two
+> figures still do not share a denominator, and for a day the conclusion here held for a
+> different reason than the one written.
+>
+> What actually unblocked it was not a shared price source but a shared _identity_: M5-2
+> also carries each position's receipt-token address, which is what tells the listed case
+> from the unlisted one. The formula in ADR-029 is not `total − debt`; it removes the
+> double count first. The rest of this ADR — figures beside the assets, never inside the
+> total, sourced to Aave and labelled as such — is unchanged.
 
 **The panel's wording carries this.** It says collateral _may also appear above as a
 receipt token_, not "not included in the total above". The latter was true of the
@@ -1698,3 +1702,65 @@ ADR-027 does. No new addresses entered the registry for this feature.
 - **A wallet with only rewards gets a panel.** `hasPosition` counts them, because most
   wallets with something unclaimed hold nothing in the market any more — the same
   measurement, applied to the question of whether to render at all.
+
+## ADR-029 — A net-of-debt figure, now that the double count can be detected
+
+**Supersedes the "no net total" half of ADR-026.** Everything else in ADR-026 stands.
+
+**Context.** ADR-026 refused `netValueUsd` because the formula `total − debt` is right for
+a wallet whose Aave receipt token happens to be on a bundled list and wrong by the entire
+collateral for one whose is not, with nothing at runtime telling the two apart. The
+worked example: a wallet supplying $100,000 and borrowing $40,000 reported **$0** against
+a true $60,000.
+
+That reasoning was sound and the missing piece was information, not judgement. M5-2 now
+reads every position with the address of the receipt token it is held as. The two cases
+are no longer indistinguishable.
+
+**Decision.** Compute it, per chain and across chains:
+
+```
+  priced subtotal                  (assets, priced by the app's source)
+− receipt tokens already inside it (the double count, matched by aToken address)
++ supplied, priced by the market   (the position, added back once)
+− borrowed, priced by the market
+```
+
+Shown beneath the estimated value rather than in a card of its own, because the only
+thing anyone wants to do with it is compare the two.
+
+**The two worked examples, which are the reason to trust it.** Both are tests.
+
+|                                    | Receipt token listed | Receipt token not listed |
+| ---------------------------------- | -------------------- | ------------------------ |
+| `total − debt` (ADR-026's formula) | $9,620.28            | **−$7,910.00**           |
+| This calculation                   | $9,621.10            | **$9,618.00**            |
+
+The correction is worth **82 cents** in the first case and **the entire collateral** in
+the second. That shape is the point: it does nothing where the naive formula was already
+right, and everything where it was catastrophically wrong. Verified live on 2026-08-08
+against the benchmark borrower, where the adjustment came to $4.03 — the two price
+sources disagreeing about the same WETH, and nothing else.
+
+**It answers null far more readily than it answers a number**, and every refusal is a
+case where the sum would be wrong in a way no reader could detect:
+
+| Refusal                                         | Why                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| The wallet owes nothing                         | The net _is_ the total; a second copy invites a hunt for a difference that is not there     |
+| A market could not be read                      | Its debt is unknown, and "it probably had nothing" is not a thing to put in a headline      |
+| A market cannot say what its totals are made of | Optimism and BNB. The double count is undetectable, and both guesses are wrong by thousands |
+| The market oracle could not price a position    | Leaving it out would understate by exactly the amount nobody can see                        |
+| Nothing could be priced at all                  | There is no subtotal to adjust                                                              |
+
+**What it is still not.** It is net of **Aave** debt, on the chains this product reads,
+and the label says so rather than claiming "net worth". A wallet with a Compound loan
+gets a figure that ignores it — which is why M5-3's coverage statement is a prerequisite
+for this feature rather than an unrelated one.
+
+**One price source still meets another inside it.** The subtotal is DefiLlama's and the
+position is Aave's, so the figure inherits whatever they disagree about — $4.03 on a
+$17,600 wallet when measured. That is a real cost, it was the reason to hesitate, and it
+is accepted here because the alternative is a page that shows a debt and refuses to
+subtract it. The disagreement is bounded by ADR-019's tolerance; the old formula's error
+was not bounded at all.

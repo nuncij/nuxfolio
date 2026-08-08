@@ -65,6 +65,7 @@ function chainPortfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     chainName: 'Ethereum Mainnet',
     protocolAccounts: [],
     totalValueUsd: priced.length > 0 ? '2000.00000000' : null,
+    netOfAaveDebtUsd: null,
     assetCount: assets.length,
     pricedAssetCount: assets.filter((entry) => entry.valueUsd !== null).length,
     unpricedAssetCount: assets.filter((entry) => entry.valueUsd === null).length,
@@ -89,6 +90,7 @@ const BASE = chainPortfolio({
   chainId: 8453,
   chainName: 'Base',
   totalValueUsd: '500.50000000',
+  netOfAaveDebtUsd: null,
   assets: [asset({ assetId: '8453:native', chainId: 8453, valueUsd: '500.50000000' })],
 });
 
@@ -242,6 +244,7 @@ describe('progressive aggregate assembly', () => {
       chainId: 8453,
       chainName: 'Base',
       totalValueUsd: null,
+      netOfAaveDebtUsd: null,
       assets: [asset({ assetId: '8453:native', chainId: 8453, priceUsd: null, valueUsd: null })],
     });
 

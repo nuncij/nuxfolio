@@ -194,6 +194,8 @@ export const protocolPositionSchema = z.object({
    * never have been collateral-eligible — so nothing here claims an intention.
    */
   usedAsCollateral: z.boolean(),
+  /** The receipt token the supply is held as — what a net figure must not count twice. */
+  aTokenAddress: z.string().min(1),
   /** Null when the market oracle had no price — never 0 in that case. */
   suppliedValueUsd: decimalString.nullable(),
   borrowedValueUsd: decimalString.nullable(),
@@ -259,6 +261,12 @@ export const portfolioSchema = z.object({
    * Null when nothing could be priced, never 0 in that case.
    */
   totalValueUsd: decimalString.nullable(),
+  /**
+   * The total with the wallet's Aave position counted once and its Aave debt taken
+   * off. Null whenever it cannot be computed exactly — including when there is no debt,
+   * where it would only repeat `totalValueUsd`. See `domain/netOfDebt.ts` and ADR-029.
+   */
+  netOfAaveDebtUsd: decimalString.nullable(),
   assetCount: z.number().int().min(0),
   pricedAssetCount: z.number().int().min(0),
   unpricedAssetCount: z.number().int().min(0),
@@ -311,6 +319,8 @@ export const aggregatePortfolioSchema = z.object({
   address: z.string().min(1),
   /** Sum across every chain that returned a priced subtotal; null if none did. */
   totalValueUsd: decimalString.nullable(),
+  /** As on a single chain, computed across all of them at once. */
+  netOfAaveDebtUsd: decimalString.nullable(),
   assetCount: z.number().int().min(0),
   pricedAssetCount: z.number().int().min(0),
   unpricedAssetCount: z.number().int().min(0),

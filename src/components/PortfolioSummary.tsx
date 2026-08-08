@@ -79,6 +79,26 @@ export function PortfolioSummary(
   // and folding it into agreement would report a confirmation that never happened.
   const crossCheckNote = summary.checkedAssetCount === 0 ? null : describeCrossCheck(summary);
 
+  // The net figure goes under the gross one rather than into a card of its own: the
+  // only thing a reader wants to do with it is compare the two, and side by side is
+  // where that comparison is free. It is absent far more often than it is present —
+  // no debt, an unreadable market, a position the market oracle could not price — and
+  // in each of those cases showing nothing is the honest answer, because the lending
+  // panel below already carries the reason. See `domain/netOfDebt.ts`.
+  const valueDetail =
+    summary.totalValueUsd === null
+      ? 'No prices available'
+      : [
+          summary.netOfAaveDebtUsd === null
+            ? null
+            : `${money(summary.netOfAaveDebtUsd)} after Aave debt`,
+          summary.unpricedAssetCount > 0
+            ? `${summary.pricedAssetCount} of ${summary.assetCount} assets priced`
+            : null,
+        ]
+          .filter((part): part is string => part !== null)
+          .join(' · ') || `Updated ${formatRelativeTime(fetchedAt)}`;
+
   return (
     <section aria-label="Portfolio summary">
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -87,13 +107,7 @@ export function PortfolioSummary(
             summary.unpricedAssetCount > 0 ? 'Estimated value (priced assets)' : 'Estimated value'
           }
           value={money(summary.totalValueUsd)}
-          detail={
-            summary.totalValueUsd === null
-              ? 'No prices available'
-              : summary.unpricedAssetCount > 0
-                ? `${summary.pricedAssetCount} of ${summary.assetCount} assets priced`
-                : `Updated ${formatRelativeTime(fetchedAt)}`
-          }
+          detail={valueDetail}
           emphasis
         />
 

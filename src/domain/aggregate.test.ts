@@ -47,6 +47,7 @@ function chainPortfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     chainName: 'Ethereum Mainnet',
     protocolAccounts: [],
     totalValueUsd: priced.length > 0 ? '2000.00000000' : null,
+    netOfAaveDebtUsd: null,
     assetCount: assets.length,
     pricedAssetCount: priced.length,
     unpricedAssetCount: assets.length - priced.length,
@@ -76,6 +77,7 @@ describe('buildAggregatePortfolio', () => {
           chainName: 'Base',
           protocolAccounts: [],
           totalValueUsd: '500.50000000',
+          netOfAaveDebtUsd: null,
           assets: [asset({ assetId: '8453:native', chainId: 8453, valueUsd: '500.50000000' })],
         }),
       ],
@@ -95,6 +97,7 @@ describe('buildAggregatePortfolio', () => {
       chains: [
         chainPortfolio({
           totalValueUsd: null,
+          netOfAaveDebtUsd: null,
           assets: [asset({ priceUsd: null, valueUsd: null, portfolioSharePct: null })],
         }),
       ],
@@ -211,6 +214,7 @@ describe('withCrossChainShares', () => {
           chainName: 'Base',
           protocolAccounts: [],
           totalValueUsd: '250.00000000',
+          netOfAaveDebtUsd: null,
           assets: [asset({ assetId: '8453:native', chainId: 8453, valueUsd: '250' })],
         }),
       ],
@@ -233,6 +237,7 @@ describe('withCrossChainShares', () => {
         chains: [
           chainPortfolio({
             totalValueUsd: '100.00000000',
+            netOfAaveDebtUsd: null,
             assets: [
               asset({ valueUsd: '100' }),
               asset({
@@ -312,6 +317,7 @@ describe('summarizeAggregate', () => {
           chainName: 'Base',
           protocolAccounts: [],
           totalValueUsd: '900.00000000',
+          netOfAaveDebtUsd: null,
           assets: [asset({ assetId: '8453:big', chainId: 8453, symbol: 'BIG', valueUsd: '900' })],
         }),
       ],
@@ -347,6 +353,7 @@ describe('summarizeAggregate', () => {
         chains: [
           chainPortfolio({
             totalValueUsd: '100.00000000',
+            netOfAaveDebtUsd: null,
             suspectAssetCount: 1,
             suspectValueUsd: '9000.00000000',
             checkedAssetCount: 0,

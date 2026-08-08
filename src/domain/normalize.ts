@@ -25,6 +25,7 @@ import type {
   PriceQuality,
   SortDirection,
 } from './portfolio';
+import { computeNetOfDebt } from './netOfDebt';
 import { largestDispute, summarizePriceChecks } from './priceCheck';
 import {
   assessSuspect,
@@ -142,18 +143,25 @@ export function buildPortfolio(input: BuildPortfolioInput): Portfolio {
     PROTOCOL_COVERAGE_WARNING,
   ]);
 
+  const accounts = (input.protocolAccounts ?? []).map((account) => ({
+    ...account,
+    positions: [...account.positions],
+    rewards: [...account.rewards],
+  }));
+
   return {
     address: input.address,
     chainId: input.chain.chainId,
     chainName: input.chain.name,
     // Empty is the honest default for a chain where nothing was asked: `failed`
     // accounts are the only way a read that did not answer reaches the wire.
-    protocolAccounts: (input.protocolAccounts ?? []).map((account) => ({
-      ...account,
-      positions: [...account.positions],
-      rewards: [...account.rewards],
-    })),
+    protocolAccounts: accounts,
     totalValueUsd: pricedSubtotal,
+    netOfAaveDebtUsd: computeNetOfDebt({
+      totalValueUsd: pricedSubtotal,
+      assets,
+      accounts,
+    }).valueUsd,
     assetCount: assets.length,
     pricedAssetCount,
     unpricedAssetCount,
@@ -287,6 +295,8 @@ export function sortAssets<T extends { valueUsd: string | null; name: string; sy
 
 export type PortfolioSummary = {
   totalValueUsd: string | null;
+  /** The total net of Aave debt, or null when it cannot be computed (ADR-029). */
+  netOfAaveDebtUsd: string | null;
   assetCount: number;
   pricedAssetCount: number;
   unpricedAssetCount: number;
@@ -370,6 +380,7 @@ function summarizeAssets<T extends PortfolioAsset>(
 export function summarizePortfolio(portfolio: Portfolio): PortfolioSummary {
   return {
     totalValueUsd: portfolio.totalValueUsd,
+    netOfAaveDebtUsd: portfolio.netOfAaveDebtUsd,
     assetCount: portfolio.assetCount,
     pricedAssetCount: portfolio.pricedAssetCount,
     unpricedAssetCount: portfolio.unpricedAssetCount,
@@ -551,6 +562,16 @@ export function buildAggregatePortfolio(input: {
   return {
     address: input.address,
     ...sumPortfolioTotals(input.chains),
+    // Recomputed across every chain at once rather than summed from the per-chain
+    // figures. Summing would need a rule for a chain whose net is null because it has
+    // no debt — its assets still belong in the sum — and inventing that rule is how a
+    // net worth quietly loses a network. One calculation over everything has no such
+    // seam, and `netOfDebt` already keys its matching on chain id.
+    netOfAaveDebtUsd: computeNetOfDebt({
+      totalValueUsd: sumPortfolioTotals(input.chains).totalValueUsd,
+      assets: input.chains.flatMap((chain) => chain.assets),
+      accounts: input.chains.flatMap((chain) => chain.protocolAccounts),
+    }).valueUsd,
     chains: [...input.chains],
     failedChains: [...input.failedChains],
     // Taken from the first chain that carried one rather than passed in: every
@@ -649,6 +670,7 @@ export function summarizeAggregate(aggregate: AggregatePortfolio): PortfolioSumm
 
   return {
     totalValueUsd: aggregate.totalValueUsd,
+    netOfAaveDebtUsd: aggregate.netOfAaveDebtUsd,
     assetCount: aggregate.assetCount,
     pricedAssetCount: aggregate.pricedAssetCount,
     unpricedAssetCount: aggregate.unpricedAssetCount,

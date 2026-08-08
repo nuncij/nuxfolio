@@ -325,13 +325,12 @@ callers share one bucket with a higher ceiling. See ADR-008.
    v3 only", and a caveat states it on every wallet, including one with no lending panel
    at all — which is the wallet that cannot otherwise tell "not checked" from "nothing
    there".
-7. No net-of-debt figure is computed anywhere — and the reason first written here was
-   itself wrong. It said Aave's receipt tokens are absent from the bundled lists;
-   measuring found 53 of them present. The real obstacle is the **inconsistency**:
-   `total − debt` is right for a wallet whose receipt token happens to be listed and
-   wrong by the entire collateral for one whose is not, with nothing at runtime to tell
-   the two apart (ADR-026). M5-2 made the rows inside a market reconcile exactly, which
-   does not make the two page-level totals combinable (ADR-027).
+7. The net-of-debt figure is **net of Aave debt only**, on the chains this product
+   reads. It is not a net worth: a Compound loan is not in it, which is why the coverage
+   statement above is a prerequisite rather than a separate feature. It also mixes two
+   price sources — the assets are priced by DefiLlama and the Aave position by Aave —
+   which cost $4.03 on a $17,600 wallet when measured. It is absent entirely whenever it
+   cannot be computed exactly, including when any market could not be read (ADR-029).
 
 ## Testing
 

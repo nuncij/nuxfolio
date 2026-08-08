@@ -21,6 +21,7 @@ function chain(chainId: number, chainName: string, warnings: Portfolio['warnings
     chainName,
     protocolAccounts: [],
     totalValueUsd: null,
+    netOfAaveDebtUsd: null,
     assetCount: 0,
     pricedAssetCount: 0,
     unpricedAssetCount: 0,

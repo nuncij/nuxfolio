@@ -29,6 +29,7 @@ function chain(overrides: Partial<Portfolio> = {}): Portfolio {
     chainName: 'Ethereum Mainnet',
     protocolAccounts: [],
     totalValueUsd: '100.00000000',
+    netOfAaveDebtUsd: null,
     assetCount: 1,
     pricedAssetCount: 1,
     unpricedAssetCount: 0,
@@ -52,6 +53,7 @@ function aggregate(overrides: Partial<AggregatePortfolio> = {}): AggregatePortfo
   return {
     address: A,
     totalValueUsd: '100.00000000',
+    netOfAaveDebtUsd: null,
     assetCount: 1,
     pricedAssetCount: 1,
     unpricedAssetCount: 0,

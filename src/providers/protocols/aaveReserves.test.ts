@@ -52,14 +52,18 @@ type Reserve = {
   scaledDebt: bigint;
 };
 
-/** One reserve's four sub-calls, in the order the reader lays them out. */
+/** One reserve's five sub-calls, in the order the reader lays them out. */
 type Detail = {
   income: bigint;
   debt: bigint;
   decimals: number;
   /** A string encodes as an ABI string; a `Hex` goes on the wire verbatim. */
   symbol: string | `0x${string}` | null;
+  /** The receipt token, which a net figure must not count twice. */
+  aToken?: string;
 };
+
+const A_WETH = '0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8';
 
 /** The first call: the wallet's scaled balances and the market's own oracle address. */
 function encodeUserReserves(reserves: readonly Reserve[], oracle: string = ORACLE): string {
@@ -102,6 +106,7 @@ function encodeBatch(prices: readonly bigint[], details: readonly Detail[]): str
               : encodeAbiParameters(parseAbiParameters('string'), [detail.symbol]),
           ],
     );
+    results.push([true, word(BigInt(detail.aToken ?? A_WETH))]);
   }
 
   return encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [results]);
@@ -159,6 +164,7 @@ describe('readMarketReserves', () => {
         supplied: LIVE.wethActualBalance,
         borrowed: 0n,
         usedAsCollateral: true,
+        aTokenAddress: A_WETH.toLowerCase(),
         priceBase: LIVE.wethPrice,
       },
       {
@@ -168,6 +174,7 @@ describe('readMarketReserves', () => {
         supplied: 0n,
         borrowed: LIVE.usdcActualDebt,
         usedAsCollateral: false,
+        aTokenAddress: A_WETH.toLowerCase(),
         priceBase: LIVE.usdcPrice,
       },
     ]);
@@ -352,6 +359,7 @@ describe('readMarketReserves', () => {
       encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [
         [
           [true, encodeAbiParameters(parseAbiParameters('uint256[]'), [[LIVE.wethPrice]])] as const,
+          [false, '0x'] as const,
           [false, '0x'] as const,
           [false, '0x'] as const,
           [false, '0x'] as const,

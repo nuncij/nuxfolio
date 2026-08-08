@@ -54,6 +54,8 @@ const DECIMALS = '0x313ce567';
 const SYMBOL = '0x95d89b41';
 /** `getPriceOracle()` on the market's `PoolAddressesProvider`. */
 const PRICE_ORACLE = '0xfca513a8';
+/** `getReserveAToken(address)` — the receipt token, for spotting a double count. */
+const RESERVE_ATOKEN = '0xcff027d9';
 
 /**
  * Every selector above, keyed by the signature it claims to be.
@@ -68,10 +70,11 @@ export const SELECTORS: Readonly<Record<string, string>> = {
   'decimals()': DECIMALS,
   'symbol()': SYMBOL,
   'getPriceOracle()': PRICE_ORACLE,
+  'getReserveAToken(address)': RESERVE_ATOKEN,
 };
 
-/** Sub-calls per active reserve: income, debt, decimals, symbol. */
-const CALLS_PER_RESERVE = 4;
+/** Sub-calls per active reserve: income, debt, decimals, symbol, aToken. */
+const CALLS_PER_RESERVE = 5;
 
 const userReservesAbi = [
   {
@@ -123,6 +126,13 @@ export type ReservePosition = {
    * figures can legitimately disagree.
    */
   readonly usedAsCollateral: boolean;
+  /**
+   * The receipt token this supply is held as. It is often in the wallet's own asset
+   * list under a name like "Aave v3 WETH", where it is already counted in the
+   * portfolio total — so netting debt against that total needs this address to know
+   * what to subtract (ADR-029).
+   */
+  readonly aTokenAddress: string;
   /**
    * The market oracle's price, in the market's base-currency unit. Null when the
    * oracle answered zero — a broken feed, which must render as "no price" rather than
@@ -197,6 +207,7 @@ export async function readMarketReserves(input: {
       supplied: rayMulSupply(reserve.scaledATokenBalance, detail.income),
       borrowed: rayMulDebt(reserve.scaledVariableDebt, detail.debt),
       usedAsCollateral: reserve.usageAsCollateralEnabledOnUser,
+      aTokenAddress: detail.aTokenAddress,
       priceBase: detail.priceBase,
     };
   });
@@ -266,6 +277,7 @@ type ReserveDetail = {
   readonly debt: bigint;
   readonly decimals: number;
   readonly symbol: string | null;
+  readonly aTokenAddress: string;
   readonly priceBase: bigint | null;
 };
 
@@ -313,6 +325,11 @@ async function readReserveDetails(input: {
         },
         { target: asset as Hex, allowFailure: false, callData: DECIMALS as Hex },
         { target: asset as Hex, allowFailure: true, callData: SYMBOL as Hex },
+        {
+          target: poolAddress as Hex,
+          allowFailure: false,
+          callData: `${RESERVE_ATOKEN}${padded}` as Hex,
+        },
       ];
     }),
   ];
@@ -338,8 +355,14 @@ async function readReserveDetails(input: {
     const debt = results[base + 1];
     const decimals = results[base + 2];
     const symbol = results[base + 3];
+    const aToken = results[base + 4];
 
-    if (income?.success !== true || debt?.success !== true || decimals?.success !== true) {
+    if (
+      income?.success !== true ||
+      debt?.success !== true ||
+      decimals?.success !== true ||
+      aToken?.success !== true
+    ) {
       throw new ProviderError(
         'invalid-response',
         PROVIDER_ID,
@@ -353,6 +376,7 @@ async function readReserveDetails(input: {
       debt: BigInt(debt.returnData),
       decimals: Number(BigInt(decimals.returnData)),
       symbol: symbol?.success === true ? decodeSymbol(symbol.returnData) : null,
+      aTokenAddress: decodeAddress(aToken.returnData, PROVIDER_ID),
       // Zero is the oracle saying it has no opinion, not a token worth nothing.
       priceBase: price === 0n ? null : price,
     };

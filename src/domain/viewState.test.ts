@@ -44,6 +44,7 @@ function portfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     chainName: 'Ethereum Mainnet',
     protocolAccounts: [],
     totalValueUsd: '2000.00000000',
+    netOfAaveDebtUsd: null,
     assetCount: assets.length,
     pricedAssetCount: assets.filter((entry) => entry.valueUsd !== null).length,
     unpricedAssetCount: assets.filter((entry) => entry.valueUsd === null).length,
@@ -124,6 +125,7 @@ describe('selectPortfolioViewState', () => {
         portfolio({
           assets: [asset({ priceUsd: null, valueUsd: null, portfolioSharePct: null })],
           totalValueUsd: null,
+          netOfAaveDebtUsd: null,
         }),
       ),
       error: null,

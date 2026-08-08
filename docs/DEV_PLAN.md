@@ -128,28 +128,28 @@ go-public checklist names Nuxfolio as a deliberate exception.
 
 ### Known gaps, honestly stated
 
-| Gap                                                                             | Where documented                                                                      |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| ~~Junk tokens inflating a total~~                                               | ✅ addressed by M2-1 (identity heuristics + accounting)                               |
-| On-list junk airdrops still count toward the total (the list is the whitelist)  | accepted, ADR-014                                                                     |
-| Spoof detection covers a curated subset of Unicode confusables, not all of them | accepted, ADR-014 addendum — narrowed 2026-08-04, not closed                          |
-| ~~The weekly list refresh reaches `main`, not the running app~~                 | ✅ ADR-018 addendum — the target pulls each build from CI on a 15-minute timer        |
-| Offchain/CCIP-resolved ENS names return not-found                               | round 4 F-01 — needs a hardened gateway fetch                                         |
-| ~~ENS lookups happen on the page-render path, outside the API rate limiter~~    | ✅ rate limited on the render path, 2026-08-05 (ADR-025)                              |
-| ~~Single price source, no cross-check~~                                         | ✅ M2-2 / ADR-019 — verifier, needs the free Demo key                                 |
-| Cross-check covers 95 % of value, not every asset (quota)                       | accepted, ADR-019 — unchecked is reported, not implied                                |
-| In-process cache and rate limiter — per-instance semantics                      | ADR-007                                                                               |
-| ~~Aggregate waits for the slowest chain~~                                       | ✅ M2-3                                                                               |
-| ~~ENS names rejected~~                                                          | ✅ M2-4                                                                               |
-| ~~Token lists age invisibly~~                                                   | ✅ M2-5(a) warns, M2-5(b) refreshes weekly behind a drift guard                       |
-| ~~No remote, no deployment (CI file exists, inactive)~~                         | ✅ M2-6/7 — on GitHub, live on the owner's VPS (ADR-018)                              |
-| ~~Protocol accounting: debt and liquidation risk not read~~                     | ✅ M5-1, 2026-08-07 — Aave v3 borrower state (ADR-026)                                |
-| ~~Which assets a market's totals are made of~~                                  | ✅ M5-2, 2026-08-07 — rows priced by the market's own oracle (ADR-027)                |
-| ~~The page never says which protocols were _not_ checked~~                      | ✅ M5-3, 2026-08-08 — stated in the panel and in the caveats, on every wallet         |
-| ~~Unclaimed Aave rewards are not read~~                                         | ✅ M5-4, 2026-08-08 — all seven markets, priced where the market oracle can (ADR-028) |
-| Other lending protocols, staking, LP composition                                | M5-6 — Aave v3 is the only protocol read                                              |
-| Collateral is inconsistently visible in the asset total (53 v3 receipts listed) | ADR-026 — why no net-of-debt figure exists, and why M5-2 did not change that          |
-| ~~Alchemy path never exercised live~~                                           | ✅ measured live 2026-08-03 and removed again — see Part 5                            |
+| Gap                                                                             | Where documented                                                                             |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| ~~Junk tokens inflating a total~~                                               | ✅ addressed by M2-1 (identity heuristics + accounting)                                      |
+| On-list junk airdrops still count toward the total (the list is the whitelist)  | accepted, ADR-014                                                                            |
+| Spoof detection covers a curated subset of Unicode confusables, not all of them | accepted, ADR-014 addendum — narrowed 2026-08-04, not closed                                 |
+| ~~The weekly list refresh reaches `main`, not the running app~~                 | ✅ ADR-018 addendum — the target pulls each build from CI on a 15-minute timer               |
+| Offchain/CCIP-resolved ENS names return not-found                               | round 4 F-01 — needs a hardened gateway fetch                                                |
+| ~~ENS lookups happen on the page-render path, outside the API rate limiter~~    | ✅ rate limited on the render path, 2026-08-05 (ADR-025)                                     |
+| ~~Single price source, no cross-check~~                                         | ✅ M2-2 / ADR-019 — verifier, needs the free Demo key                                        |
+| Cross-check covers 95 % of value, not every asset (quota)                       | accepted, ADR-019 — unchecked is reported, not implied                                       |
+| In-process cache and rate limiter — per-instance semantics                      | ADR-007                                                                                      |
+| ~~Aggregate waits for the slowest chain~~                                       | ✅ M2-3                                                                                      |
+| ~~ENS names rejected~~                                                          | ✅ M2-4                                                                                      |
+| ~~Token lists age invisibly~~                                                   | ✅ M2-5(a) warns, M2-5(b) refreshes weekly behind a drift guard                              |
+| ~~No remote, no deployment (CI file exists, inactive)~~                         | ✅ M2-6/7 — on GitHub, live on the owner's VPS (ADR-018)                                     |
+| ~~Protocol accounting: debt and liquidation risk not read~~                     | ✅ M5-1, 2026-08-07 — Aave v3 borrower state (ADR-026)                                       |
+| ~~Which assets a market's totals are made of~~                                  | ✅ M5-2, 2026-08-07 — rows priced by the market's own oracle (ADR-027)                       |
+| ~~The page never says which protocols were _not_ checked~~                      | ✅ M5-3, 2026-08-08 — stated in the panel and in the caveats, on every wallet                |
+| ~~Unclaimed Aave rewards are not read~~                                         | ✅ M5-4, 2026-08-08 — all seven markets, priced where the market oracle can (ADR-028)        |
+| Other lending protocols, staking, LP composition                                | M5-6 — Aave v3 is the only protocol read                                                     |
+| ~~Collateral is inconsistently visible in the asset total~~                     | ✅ M5-8, 2026-08-08 — detected by receipt-token address and removed before netting (ADR-029) |
+| ~~Alchemy path never exercised live~~                                           | ✅ measured live 2026-08-03 and removed again — see Part 5                                   |
 
 ---
 
@@ -264,7 +264,7 @@ already visible; this milestone adds what `balanceOf` cannot see.
 | M5-5 | **`PositionProvider` interface.** Normalised `Position` objects across protocols, each adapter with its own coverage semantics. **Deliberately deferred, not skipped**: an abstraction with one implementation is the kind this codebase rejects. Build it _with_ the second adapter.    | M      | Was M5-1 and was to come first; inverted on purpose. |
 | M5-6 | **Lido, Curve/Convex adapters.** Staking and LP composition + unclaimed rewards. Choose by TVL × what benchmark wallets actually hold.                                                                                                                                                   | L each | The second adapter is what proves M5-5's shape.      |
 | M5-7 | **Decide on an indexer shortcut.** Zerion/Zapper-style position APIs could cover the long tail in one integration but are paid and re-introduce single-vendor coupling. Evaluate _after_ three first-party adapters exist, so the abstraction is proven before a vendor hides behind it. | —      | Decision point, not a work item.                     |
-| M5-8 | **Debt-aware totals.** Net worth = assets − debt, with both shown. Still blocked by the thing ADR-026 found and ADR-027 did not change: the asset side is priced by DefiLlama and the debt side by Aave, and a receipt token may or may not be on a bundled list.                        | M      | Needs a decision recorded, not just code.            |
+| M5-8 | ✅ **Debt-aware totals.** The double count is detectable now that every position carries its receipt-token address, so the figure removes it before subtracting debt — worth 82 cents where the naive formula was right and the entire collateral where it was not.                      | —      | Shipped 2026-08-08. ADR-029.                         |
 
 **Exit criteria, and where they stand after M5-2:**
 
@@ -371,8 +371,13 @@ clearest case yet for measuring instead of reasoning — the obvious implementat
 only about tokens the wallet still holds, would have reported **zero for fourteen of the
 eighteen** Optimism wallets that actually had something (ADR-028).
 
-That is the Aave v3 adapter complete, not milestone 5: four of its eight rows are still
-open, and two of those are blocked on decisions rather than on effort.
+**M5-8 followed**, reversing the "no net total" half of ADR-026. The refusal was right
+when it was written and the missing piece was information rather than judgement: M5-2
+carries each position's receipt-token address, so the listed case and the unlisted case
+are no longer indistinguishable. The figure removes the double count before subtracting
+debt, and refuses to answer at all in five stated circumstances (ADR-029).
+
+That leaves three rows open, one of them a decision point rather than work.
 
 What remains optional:
 

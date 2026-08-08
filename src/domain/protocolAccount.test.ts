@@ -139,6 +139,7 @@ describe('hasPosition', () => {
       supplied: '9.08',
       borrowed: '0',
       usedAsCollateral: false,
+      aTokenAddress: '0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8',
       suppliedValueUsd: '17528.01',
       borrowedValueUsd: '0',
     };

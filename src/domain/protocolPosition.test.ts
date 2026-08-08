@@ -74,6 +74,7 @@ function raw(reserve: Fixture): RawPosition {
     supplied: rayMulSupply(reserve.scaledSupply, reserve.income),
     borrowed: rayMulDebt(reserve.scaledDebt, reserve.debtIndex),
     usedAsCollateral: reserve.collateral,
+    aTokenAddress: '0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8',
     priceBase: reserve.price,
   };
 }

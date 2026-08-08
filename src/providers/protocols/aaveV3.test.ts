@@ -278,6 +278,7 @@ const DETAIL_BATCH = encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [
     [true, word(0n)],
     [true, word(18n)],
     [true, encodeAbiParameters(parseAbiParameters('string'), ['WETH'])],
+    [true, word(BigInt('0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8'))],
   ],
 ]);
 
@@ -305,6 +306,7 @@ describe('the breakdown, beside the totals rather than in front of them', () => 
         supplied: '9.083319214352582347',
         borrowed: '0',
         usedAsCollateral: true,
+        aTokenAddress: '0x4d5f47fa6a74757f35c14fd3a6ef8e3c9bc514e8',
         suppliedValueUsd: '17528.0091792',
         borrowedValueUsd: '0',
       },
