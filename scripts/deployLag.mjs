@@ -12,10 +12,24 @@
  * module is the honest version — it cannot deploy, so it makes the shortfall visible
  * and specific instead of leaving it to be noticed.
  *
- * **What it compares.** Not commits — the age of the `generatedAt` in the lists the
- * live app is actually serving, because that is the same quantity the app's own 60-day
- * warning measures. A count of commits behind would be noise; "the running site is
- * using lists from six weeks ago" is a decision.
+ * **What it compares.** The age of the `generatedAt` in the lists the live app is
+ * actually serving, because that is the same quantity the app's own 60-day warning
+ * measures. "The running site is using lists from six weeks ago" is a decision; a raw
+ * commit count is not.
+ *
+ * **It now also reports how far the deployed *code* is behind, separately.** When this
+ * was written the only thing that shipped on a schedule was a token list, so lists were
+ * the whole question and the summary said "Nothing to ship" when they matched. That
+ * became false the moment the target started self-updating application code: on
+ * 2026-08-08 this reported `current` while the live site was missing a bug fix, and it
+ * was a person looking at the page who noticed, not the check. A tool that answers a
+ * narrower question than its name suggests gives false comfort, which is worse than
+ * answering nothing.
+ *
+ * The two stay separate rather than being folded into one status. They call for
+ * different responses — stale lists are worth an issue after a month, while code a few
+ * minutes behind is the self-updater working normally — and merging them would make the
+ * one signal that opens a GitHub issue fire on both.
  */
 
 /**
@@ -37,6 +51,8 @@ const MS_PER_DAY = 86_400_000;
  * @property {number | null} deployedAgeDays
  * @property {boolean} hasSomethingToShip
  * @property {string} summary
+ * @property {number | null} commitsBehind
+ * @property {string} codeSummary
  */
 
 /**
@@ -46,14 +62,17 @@ const MS_PER_DAY = 86_400_000;
  * there is nothing to compare, and guessing "probably fine" would be the same species
  * of dishonesty as a fresh timestamp on a shrunken list.
  *
- * @param {{ deployedGeneratedAt: string | null, mainGeneratedAt: string, now: number }} input
+ * @param {{ deployedGeneratedAt: string | null, mainGeneratedAt: string, now: number, commitsBehind?: number | null }} input
  * @returns {DeployLag}
  */
 export function assessDeployLag(input) {
   const mainAt = Date.parse(input.mainGeneratedAt);
+  const commitsBehind = input.commitsBehind ?? null;
+  const code = { commitsBehind, codeSummary: describeCodeLag(commitsBehind) };
 
   if (input.deployedGeneratedAt === null) {
     return {
+      ...code,
       status: 'unknown',
       deployedAgeDays: null,
       hasSomethingToShip: false,
@@ -66,6 +85,7 @@ export function assessDeployLag(input) {
   const deployedAt = Date.parse(input.deployedGeneratedAt);
   if (Number.isNaN(deployedAt) || Number.isNaN(mainAt)) {
     return {
+      ...code,
       status: 'unknown',
       deployedAgeDays: null,
       hasSomethingToShip: false,
@@ -80,15 +100,20 @@ export function assessDeployLag(input) {
 
   if (!hasSomethingToShip) {
     return {
+      ...code,
       status: 'current',
       deployedAgeDays,
       hasSomethingToShip,
-      summary: `The live site is serving the same lists as \`main\` (${describeAge(deployedAgeDays)}). Nothing to ship.`,
+      // Deliberately no longer "Nothing to ship". This function can only see the lists,
+      // and saying otherwise is what let a missing bug fix sit on the live site while
+      // the check reported everything was fine.
+      summary: `The live site is serving the same lists as \`main\` (${describeAge(deployedAgeDays)}).`,
     };
   }
 
   if (deployedAgeDays > DEPLOY_LAG_WARN_DAYS) {
     return {
+      ...code,
       status: 'behind',
       deployedAgeDays,
       hasSomethingToShip,
@@ -100,6 +125,7 @@ export function assessDeployLag(input) {
   }
 
   return {
+    ...code,
     status: 'pending',
     deployedAgeDays,
     hasSomethingToShip,
@@ -113,6 +139,30 @@ export function assessDeployLag(input) {
 /** The one instruction that resolves a `behind` status. */
 export function deployInstruction() {
   return 'NUXFOLIO_DEPLOY_TARGET=<user@host> pnpm deploy';
+}
+
+/**
+ * What the commit count means, in words.
+ *
+ * Null rather than zero when the comparison could not be made — an unpushed `deployed`
+ * tag, a shallow clone. "Zero commits behind" and "could not tell" are different answers
+ * and only one of them is reassuring.
+ *
+ * @param {number | null} commitsBehind
+ */
+function describeCodeLag(commitsBehind) {
+  if (commitsBehind === null) {
+    return 'How far the deployed code is behind could not be determined.';
+  }
+  if (commitsBehind === 0) {
+    return 'The live site is running the same commit as `main`.';
+  }
+  return (
+    `The live site is running code **${commitsBehind} commit${commitsBehind === 1 ? '' : 's'} ` +
+    'behind** `main`. The target self-updates on a timer, so a small number here shortly ' +
+    'after a push is normal; one that does not shrink means the updater is stuck rather ' +
+    'than late.'
+  );
 }
 
 /** @param {number} days */

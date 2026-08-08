@@ -32,14 +32,19 @@ describe('assessDeployLag', () => {
     ).toBe('unknown');
   });
 
-  it('reports nothing to ship when the deployed lists match main', () => {
+  it('reports the lists as current when they match main — and claims nothing more', () => {
+    // This test used to require the words "Nothing to ship", and that assertion was the
+    // defect: this function can only see token lists, so it was pinning a claim about
+    // the whole deployment that it had no way to check. The summary now says what it
+    // measured, and `codeSummary` answers the other half separately.
     const same = daysAgo(3);
     const lag = assessDeployLag({ deployedGeneratedAt: same, mainGeneratedAt: same, now: NOW });
 
     expect(lag.status).toBe('current');
     expect(lag.hasSomethingToShip).toBe(false);
     expect(lag.deployedAgeDays).toBe(3);
-    expect(lag.summary).toContain('Nothing to ship');
+    expect(lag.summary).toContain('same lists as');
+    expect(lag.summary).not.toContain('Nothing to ship');
   });
 
   it('treats a newer deployed build as current rather than as an error', () => {
@@ -116,5 +121,64 @@ describe('assessDeployLag', () => {
     });
 
     expect(lag.summary).toContain('generated today');
+  });
+});
+
+describe('code lag, reported separately from list age', () => {
+  const SAME = '2026-08-04T19:35:02.517Z';
+
+  it('no longer claims there is nothing to ship when only the lists match', () => {
+    // The exact false comfort this reported on 2026-08-08: `current`, while the live
+    // site was missing a bug fix. A person looking at the page noticed; the check did
+    // not, because it said "Nothing to ship" about a question it cannot see.
+    const lag = assessDeployLag({
+      deployedGeneratedAt: SAME,
+      mainGeneratedAt: SAME,
+      commitsBehind: 2,
+      now: Date.parse('2026-08-08T12:00:00.000Z'),
+    });
+
+    expect(lag.status).toBe('current');
+    expect(lag.summary).not.toMatch(/nothing to ship/i);
+    expect(lag.codeSummary).toMatch(/2 commits behind/);
+  });
+
+  it('says so plainly when the deployed commit is the current one', () => {
+    const lag = assessDeployLag({
+      deployedGeneratedAt: SAME,
+      mainGeneratedAt: SAME,
+      commitsBehind: 0,
+      now: Date.parse('2026-08-08T12:00:00.000Z'),
+    });
+
+    expect(lag.codeSummary).toMatch(/same commit/);
+  });
+
+  it('distinguishes "could not tell" from "zero"', () => {
+    // A shallow clone or an unfetched tag cannot answer. Reporting that as zero would
+    // be the same species of false comfort in a different place.
+    const lag = assessDeployLag({
+      deployedGeneratedAt: SAME,
+      mainGeneratedAt: SAME,
+      commitsBehind: null,
+      now: Date.parse('2026-08-08T12:00:00.000Z'),
+    });
+
+    expect(lag.commitsBehind).toBeNull();
+    expect(lag.codeSummary).toMatch(/could not be determined/);
+    expect(lag.codeSummary).not.toMatch(/same commit/);
+  });
+
+  it('keeps the list status independent, so one issue does not fire on the other', () => {
+    // `status: 'behind'` opens a GitHub issue about token lists. Code being a few
+    // minutes behind is the self-updater working, and must not open that issue.
+    const lag = assessDeployLag({
+      deployedGeneratedAt: SAME,
+      mainGeneratedAt: SAME,
+      commitsBehind: 40,
+      now: Date.parse('2026-08-08T12:00:00.000Z'),
+    });
+
+    expect(lag.status).toBe('current');
   });
 });
