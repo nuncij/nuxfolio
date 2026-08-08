@@ -7,6 +7,7 @@ import { chainFailureKindFromProviderError, chainFailureMessage } from '@/domain
 import { marketsForChain } from '@/config/aaveMarkets';
 import { buildAggregatePortfolio, buildPortfolio } from '@/domain/normalize';
 import { readAaveAccounts } from '@/providers/protocols/aaveV3';
+import { readStakedPositions } from '@/providers/protocols/convexProvider';
 import type {
   AggregatePortfolio,
   Portfolio,
@@ -164,16 +165,32 @@ async function loadPortfolio(input: {
   }
 
   const startedAt = Date.now();
-  const snapshot = await balanceProvider.fetchBalances({
-    address: request.address,
-    chain,
-    context,
-  });
 
-  const refs: PriceRef[] = snapshot.balances.map((balance) => ({
-    chainId: balance.chainId,
-    contractAddress: balance.contractAddress,
-  }));
+  // Read together, because the staked position has to be priced by the same batch as
+  // the wallet's own tokens. A Convex position is a Curve LP the wallet does not hold,
+  // so it appears in no balance — and asking for its price afterwards would mean a
+  // second price request for something the first could have carried (round 13, F3).
+  const [snapshot, staked] = await Promise.all([
+    balanceProvider.fetchBalances({ address: request.address, chain, context }),
+    readStakedPositions({
+      address: request.address,
+      chainId: chain.chainId,
+      multicallAddress: chain.multicall3Address,
+      rpcUrls: chain.rpcUrls,
+      context,
+    }),
+  ]);
+
+  const refs: PriceRef[] = [
+    ...snapshot.balances.map((balance) => ({
+      chainId: balance.chainId,
+      contractAddress: balance.contractAddress,
+    })),
+    ...staked.positions.map((position) => ({
+      chainId: position.chainId,
+      contractAddress: position.stakedToken as WalletAddress,
+    })),
+  ];
 
   const warnings: PortfolioWarning[] = [...snapshot.warnings];
   let quotes: ReadonlyMap<string, PriceQuote> = new Map();
@@ -230,6 +247,8 @@ async function loadPortfolio(input: {
       nativeSymbol: chain.nativeAsset.symbol,
     },
     protocolAccounts,
+    stakedPositions: staked.positions,
+    stakedStatus: staked.status,
     balances: snapshot.balances,
     // The bundled list is what "listed token" means for spoof detection, so the
     // same data that bounds the keyless scan also whitelists indexer results.

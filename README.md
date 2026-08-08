@@ -318,8 +318,12 @@ callers share one bucket with a higher ceiling. See ADR-008.
    intent: a token on the bundled list is always trusted, and the confusable map is a
    curated subset of Unicode rather than all of it.
 5. No persistence and no history — every load is a live read.
-6. Protocol accounting is read for **Aave v3 only** — no other lending protocol and no
-   LP composition. Within Aave it is complete: collateral, debt, the health factor, which
+6. Protocol accounting is read for **Aave v3 and Convex** — no other lending protocol
+   and no LP composition. Convex is read because its reward contract owns the staked
+   Curve LP, so no balance read can see it; Lido and Curve were dropped from the
+   milestone after measuring that their tokens are already listed and already counted.
+   Convex **rewards** are not read at all: CVX is minted on a schedule rather than held,
+   so a figure from the pool contracts alone would understate. Within Aave it is complete: collateral, debt, the health factor, which
    assets each is made of, and unclaimed incentives. The page says what it does not cover
    rather than leaving it to be discovered: the lending panel's caption leads with "Aave
    v3 only", and a caveat states it on every wallet, including one with no lending panel

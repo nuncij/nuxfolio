@@ -64,6 +64,8 @@ function chainPortfolio(overrides: Partial<Portfolio> = {}): Portfolio {
     chainId: 1,
     chainName: 'Ethereum Mainnet',
     protocolAccounts: [],
+    stakedPositions: [],
+    stakedStatus: 'unavailable',
     totalValueUsd: priced.length > 0 ? '2000.00000000' : null,
     netOfAaveDebtUsd: null,
     assetCount: assets.length,

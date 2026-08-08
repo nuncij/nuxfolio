@@ -147,7 +147,7 @@ go-public checklist names Nuxfolio as a deliberate exception.
 | ~~Which assets a market's totals are made of~~                                  | ✅ M5-2, 2026-08-07 — rows priced by the market's own oracle (ADR-027)                       |
 | ~~The page never says which protocols were _not_ checked~~                      | ✅ M5-3, 2026-08-08 — stated in the panel and in the caveats, on every wallet                |
 | ~~Unclaimed Aave rewards are not read~~                                         | ✅ M5-4, 2026-08-08 — all seven markets, priced where the market oracle can (ADR-028)        |
-| Other lending protocols, staking, LP composition                                | M5-6 — Aave v3 is the only protocol read                                                     |
+| Other lending protocols, and LP composition                                     | Beyond M5 — Aave v3 and Convex are the protocols read                                        |
 | ~~Collateral is inconsistently visible in the asset total~~                     | ✅ M5-8, 2026-08-08 — detected by receipt-token address and removed before netting (ADR-029) |
 | ~~Alchemy path never exercised live~~                                           | ✅ measured live 2026-08-03 and removed again — see Part 5                                   |
 
@@ -262,19 +262,19 @@ already visible; this milestone adds what `balanceOf` cannot see.
 | M5-3 | ✅ **Say which protocols were _not_ checked.** The panel names Aave v3 as its whole scope, and a caveat present on every wallet says so again — including the wallet with no lending panel at all, which is the one that needed it.                                                      | —      | Shipped 2026-08-08.                                  |
 | M5-4 | ✅ **Unclaimed Aave rewards.** Read from every token in the market rather than every token the wallet holds — measured, because the cheap version reported zero for fourteen of the eighteen Optimism wallets that had something.                                                        | —      | Shipped 2026-08-08. ADR-028.                         |
 | M5-5 | **`PositionProvider` interface.** Normalised `Position` objects across protocols, each adapter with its own coverage semantics. **Deliberately deferred, not skipped**: an abstraction with one implementation is the kind this codebase rejects. Build it _with_ the second adapter.    | M      | Was M5-1 and was to come first; inverted on purpose. |
-| M5-6 | **Lido, Curve/Convex adapters.** Staking and LP composition + unclaimed rewards. Choose by TVL × what benchmark wallets actually hold.                                                                                                                                                   | L each | The second adapter is what proves M5-5's shape.      |
+| M5-6 | ✅ **Convex staking.** Re-scoped from measurement: Lido and Curve are already visible as listed tokens, so only Convex — whose reward contract owns the stake — was genuinely missing. Positions only; rewards are a stated gap.                                                         | —      | Shipped 2026-08-08. ADR-030.                         |
 | M5-7 | **Decide on an indexer shortcut.** Zerion/Zapper-style position APIs could cover the long tail in one integration but are paid and re-introduce single-vendor coupling. Evaluate _after_ three first-party adapters exist, so the abstraction is proven before a vendor hides behind it. | —      | Decision point, not a work item.                     |
 | M5-8 | ✅ **Debt-aware totals.** The double count is detectable now that every position carries its receipt-token address, so the figure removes it before subtracting debt — worth 82 cents where the naive formula was right and the entire collateral where it was not.                      | —      | Shipped 2026-08-08. ADR-029.                         |
 
 **Exit criteria, and where they stand after M5-2:**
 
-| Criterion                                                     | Status                                                   |
-| ------------------------------------------------------------- | -------------------------------------------------------- |
-| A leveraged wallet shows debt and a health factor             | ✅ M5-1, verified live against a real borrower           |
-| …and which assets those figures are made of                   | ✅ M5-2, rows reconciling to the totals to the base unit |
-| A wallet's unclaimed rewards are shown                        | ✅ M5-4 — verified against a wallet owed 1,185 OP ($104) |
-| …and its Convex positions                                     | ❌ Aave v3 is the only protocol read — M5-6              |
-| Every protocol view states which protocols were _not_ checked | ✅ M5-3, in the panel and in the always-present caveat   |
+| Criterion                                                     | Status                                                         |
+| ------------------------------------------------------------- | -------------------------------------------------------------- |
+| A leveraged wallet shows debt and a health factor             | ✅ M5-1, verified live against a real borrower                 |
+| …and which assets those figures are made of                   | ✅ M5-2, rows reconciling to the totals to the base unit       |
+| A wallet's unclaimed rewards are shown                        | ✅ M5-4 — verified against a wallet owed 1,185 OP ($104)       |
+| …and its Convex positions                                     | ✅ M5-6 — the sweep finds them; rewards are not read (ADR-030) |
+| Every protocol view states which protocols were _not_ checked | ✅ M5-3, in the panel and in the always-present caveat         |
 
 One criterion is left, and it is a whole protocol rather than a detail. The one that was
 not a feature — the page implying a completeness it did not have — went first.
@@ -377,7 +377,14 @@ carries each position's receipt-token address, so the listed case and the unlist
 are no longer indistinguishable. The figure removes the double count before subtracting
 debt, and refuses to answer at all in five stated circumstances (ADR-029).
 
-That leaves three rows open, one of them a decision point rather than work.
+**M5-6 followed**, re-scoped by measurement before any code: of the three protocols the
+row named, two were already fully visible as listed tokens and only Convex was missing.
+Convex's reward contract owns the staked Curve LP, so no balance read finds it — the one
+shape of position this product could not see at all.
+
+That leaves two rows open: **M5-5**, the `PositionProvider` interface, which now has its
+second adapter and so can finally be extracted from two real implementations rather than
+imagined from one; and **M5-7**, a decision point rather than work.
 
 What remains optional:
 

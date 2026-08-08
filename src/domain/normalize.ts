@@ -26,6 +26,7 @@ import type {
   SortDirection,
 } from './portfolio';
 import { computeNetOfDebt } from './netOfDebt';
+import { toStakedPosition, type RawStakedPosition } from './stakedPosition';
 import { largestDispute, summarizePriceChecks } from './priceCheck';
 import {
   assessSuspect,
@@ -82,6 +83,13 @@ export type BuildPortfolioInput = {
    * absent list means nothing was asked rather than nothing was found.
    */
   protocolAccounts?: readonly ProtocolAccount[];
+  /**
+   * Positions held for the wallet by another protocol. Optional for the same reason as
+   * `protocolAccounts`: an absent list means nothing was asked, and `stakedStatus`
+   * carries the difference.
+   */
+  stakedPositions?: readonly RawStakedPosition[];
+  stakedStatus?: 'ok' | 'failed' | 'unavailable';
   warnings: readonly PortfolioWarning[];
   fetchedAt: string;
   priceConfidenceMin: number;
@@ -156,6 +164,16 @@ export function buildPortfolio(input: BuildPortfolioInput): Portfolio {
     // Empty is the honest default for a chain where nothing was asked: `failed`
     // accounts are the only way a read that did not answer reaches the wire.
     protocolAccounts: accounts,
+    // Priced from the same quote batch as the assets, because the staked token was put
+    // into the same price request — a Convex LP is an ordinary ERC-20 that happens to
+    // live somewhere else, so it is valued the way every other holding is (ADR-030).
+    stakedPositions: (input.stakedPositions ?? []).map((position) => {
+      const built = toStakedPosition(position, (token) =>
+        quoteFor(input.quotes, position.chainId, token),
+      );
+      return { ...built, rewards: [...built.rewards] };
+    }),
+    stakedStatus: input.stakedStatus ?? 'unavailable',
     totalValueUsd: pricedSubtotal,
     netOfAaveDebtUsd: computeNetOfDebt({
       totalValueUsd: pricedSubtotal,
@@ -445,6 +463,17 @@ const PROTOCOL_COVERAGE_WARNING: PortfolioWarning = {
     'another protocol — a Compound loan, a Convex stake — is not shown, though a ' +
     'receipt token for one sitting in the wallet is still counted as a token.',
 };
+
+/** The price of one token from the batch the assets were priced by. */
+function quoteFor(
+  quotes: ReadonlyMap<string, PriceQuote>,
+  chainId: number,
+  token: string,
+): string | null {
+  return (
+    quotes.get(priceRefKey({ chainId, contractAddress: token as `0x${string}` }))?.priceUsd ?? null
+  );
+}
 
 function dedupeByCode(warnings: readonly PortfolioWarning[]): PortfolioWarning[] {
   const seen = new Set<string>();

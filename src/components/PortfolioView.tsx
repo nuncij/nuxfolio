@@ -49,6 +49,7 @@ import { PortfolioSkeleton } from './PortfolioSkeleton';
 import { PortfolioSummary } from './PortfolioSummary';
 import { PriceSourceCredit } from './PriceSourceCredit';
 import { LendingPanel } from './LendingPanel';
+import { StakedPanel } from './StakedPanel';
 import { WarningPanel } from './WarningPanel';
 
 /**
@@ -314,6 +315,10 @@ function PortfolioBody({
       <>
         <PortfolioSummary portfolio={data.portfolio} />
         <LendingPanel accounts={data.portfolio.protocolAccounts} />
+        <StakedPanel
+          positions={data.portfolio.stakedPositions}
+          status={data.portfolio.stakedStatus}
+        />
         <WarningPanel warnings={data.portfolio.warnings} />
         <AssetTable
           assets={data.portfolio.assets}
@@ -344,6 +349,18 @@ function PortfolioBody({
           that market sits on is already in its name. The accounts arrive as each
           chain settles, so this grows with the aggregate rather than waiting. */}
       <LendingPanel accounts={aggregate.chains.flatMap((chain) => chain.protocolAccounts)} />
+      <StakedPanel
+        positions={aggregate.chains.flatMap((chain) => chain.stakedPositions)}
+        // Any chain that failed makes the whole panel say so: a staked position missing
+        // from one network is missing from the page, and the reader cannot tell which.
+        status={
+          aggregate.chains.some((chain) => chain.stakedStatus === 'failed')
+            ? 'failed'
+            : aggregate.chains.some((chain) => chain.stakedStatus === 'ok')
+              ? 'ok'
+              : 'unavailable'
+        }
+      />
       <WarningPanel warnings={collectAggregateWarnings(aggregate)} />
       <AssetTable assets={assets} explorerUrl={null} showChain initialSort={initialSort} />
       <PriceSourceCredit

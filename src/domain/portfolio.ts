@@ -251,6 +251,36 @@ export const protocolAccountSchema = z.object({
 
 export type ProtocolAccountDto = z.infer<typeof protocolAccountSchema>;
 
+/**
+ * A position another protocol holds for the wallet.
+ *
+ * Distinct from a `PortfolioAsset` because the wallet does not hold it — Convex's reward
+ * contract does — and distinct from a `ProtocolAccountDto` because there is no debt and
+ * no health factor, only a balance somewhere else. See `domain/stakedPosition.ts`.
+ */
+export const stakedRewardSchema = z.object({
+  token: z.string().min(1),
+  symbol: z.string().min(1).nullable(),
+  amount: decimalString,
+  valueUsd: decimalString.nullable(),
+});
+
+export const stakedPositionSchema = z.object({
+  positionId: z.string().min(1),
+  chainId: z.number().int().positive(),
+  protocol: z.literal('convex'),
+  /** The staked token, which is what the price source was asked about. */
+  stakedToken: z.string().min(1),
+  symbol: z.string().min(1).nullable(),
+  amount: decimalString,
+  /** Null when the price source had no quote — measured at 28 % of used Convex pools. */
+  valueUsd: decimalString.nullable(),
+  /** Always empty in v1; see `domain/stakedPosition.ts` for why that is not a claim. */
+  rewards: z.array(stakedRewardSchema),
+});
+
+export type StakedPositionDto = z.infer<typeof stakedPositionSchema>;
+
 export const portfolioSchema = z.object({
   /** Checksummed address. */
   address: z.string().min(1),
@@ -293,6 +323,12 @@ export const portfolioSchema = z.object({
    * broken read never renders as an absence of debt.
    */
   protocolAccounts: z.array(protocolAccountSchema),
+  /**
+   * Positions another protocol holds on the wallet's behalf, which no balance read can
+   * see. Empty with `stakedStatus: 'ok'` is a confirmed absence.
+   */
+  stakedPositions: z.array(stakedPositionSchema),
+  stakedStatus: z.enum(['ok', 'failed', 'unavailable']),
   /**
    * The FX rate offered for display conversion, or null when none could be
    * fetched. Carried on the response rather than fetched by the browser: a

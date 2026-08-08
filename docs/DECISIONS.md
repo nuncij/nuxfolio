@@ -1764,3 +1764,63 @@ $17,600 wallet when measured. That is a real cost, it was the reason to hesitate
 is accepted here because the alternative is a page that shows a debt and refuses to
 subtract it. The disagreement is bounded by ADR-019's tolerance; the old formula's error
 was not bounded at all.
+
+## ADR-030 — Convex only, and priced by the app's own source rather than the protocol's
+
+**Context.** M5-6 was written as "Lido, Curve/Convex adapters, L each". Measuring the
+bundled token list on 2026-08-08 showed that scope was wrong:
+
+| Protocol | Already visible?                                                                                                                    |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Lido     | **Yes** — stETH and wstETH are both listed and priced. An adapter would restate what the page already shows.                        |
+| Curve    | **Yes** — 3CRV, crvFRAX and friends are listed. Only the LP's _composition_ is missing, and that is cosmetic: the value is counted. |
+| Convex   | **No.** The staked Curve LP is owned by Convex's reward contract. No balance read — token list or indexer — finds anything.         |
+
+**Decision.** Build Convex only. Lido and Curve leave milestone 5 entirely, because the
+milestone's own founding lesson is that receipt tokens are already covered and only
+protocol-held state is missing.
+
+**How a position is found, and what it costs.** Convex's `Booster` owns a pool registry;
+each pool's `BaseRewardPool` holds the stake. So the sweep asks every live pool for the
+wallet's balance — 437 of Ethereum's 581 pools are live, the other 144 shut down — which
+measured at **122 ms for the whole sweep** in one `Multicall3`, with no failed calls.
+
+The registry is **cached per chain at module level**, because it is a property of Convex
+rather than of the wallet: fetching it per visitor would double the cost of the feature
+for data that changes only when a pool is added. `poolLength()` rides along inside the
+balance sweep, so a warm read is one call and a new pool is picked up on the next request
+rather than at a redeploy.
+
+**Priced by the app's price source, not the protocol's — the opposite of ADR-027.** An
+Aave row is priced by Aave's oracle so the rows reconcile with the totals above them.
+Nothing here has a total to reconcile with, and the thing being valued is an ordinary
+ERC-20, so it is priced the way every other holding is (ADR-005). The staked token is put
+into the **same price request as the wallet's balances**, which is why Convex is read
+alongside `fetchBalances` rather than after prices — asking afterwards would mean a
+second price request for something the first could have carried.
+
+**It is priced 72 % of the time, and that number is on the page rather than hidden.**
+Across the 330 Convex pools with anything staked in them, DefiLlama priced 238 — every one
+at confidence 0.9 or better — but only **13 of the 25 largest**, because the biggest are
+Curve lending-market LPs it does not carry. So an unpriced staked position is ordinary
+here, and the row shows the amount with "No price for this pool token" beside it.
+
+**Not added to `totalValueUsd`.** These _could_ be added — unlike the lending figures they
+share a price source with the assets. They are not, because doing so would change what the
+headline has meant since milestone 1 without saying so, and a total that quietly grows is
+the failure this product exists to avoid. The panel says which way it goes.
+
+**What v1 does not do, stated rather than implied.**
+
+- **Unclaimed rewards are not read at all.** A Convex staker earns CRV, CVX and sometimes
+  a third token, and CVX is _minted on a schedule_ rather than held where a call can find
+  it. Reporting only what the pool contracts can answer would understate — precisely the
+  mistake M5-4 measured and refused — so v1 reports the position and says nothing about
+  rewards. The field exists and is always empty, with the reason next to it.
+- **A balance left in a shut-down pool is not shown.** It is an unfinished withdrawal
+  rather than a position.
+- **The "wallet holds something" path is covered by fixtures, not by a live staker.** No
+  free RPC endpoint available to this project will answer `eth_getLogs`, so no real
+  staking wallet could be found to point the reader at. The registry decode, the
+  shut-down filter and the sweep _are_ verified live; the decode of a non-zero balance is
+  not. That is the weakest link in this feature and it is recorded as such.

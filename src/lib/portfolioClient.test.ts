@@ -10,6 +10,8 @@ const VALID_PORTFOLIO = {
   chainId: 1,
   chainName: 'Ethereum Mainnet',
   protocolAccounts: [],
+  stakedPositions: [],
+  stakedStatus: 'unavailable',
   totalValueUsd: '2000.00000000',
   netOfAaveDebtUsd: null,
   assetCount: 1,

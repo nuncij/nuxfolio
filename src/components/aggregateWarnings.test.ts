@@ -20,6 +20,8 @@ function chain(chainId: number, chainName: string, warnings: Portfolio['warnings
     chainId,
     chainName,
     protocolAccounts: [],
+    stakedPositions: [],
+    stakedStatus: 'unavailable',
     totalValueUsd: null,
     netOfAaveDebtUsd: null,
     assetCount: 0,
