@@ -14,6 +14,7 @@ import {
 } from './money';
 import type {
   AggregatePortfolio,
+  ProtocolReadStatus,
   AssetSortKey,
   Portfolio,
   PortfolioAsset,
@@ -89,7 +90,7 @@ export type BuildPortfolioInput = {
    * carries the difference.
    */
   stakedPositions?: readonly RawStakedPosition[];
-  stakedStatus?: 'ok' | 'failed' | 'unavailable';
+  stakedStatus?: ProtocolReadStatus;
   warnings: readonly PortfolioWarning[];
   fetchedAt: string;
   priceConfidenceMin: number;

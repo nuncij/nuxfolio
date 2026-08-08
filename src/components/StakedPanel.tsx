@@ -1,6 +1,6 @@
 'use client';
 
-import type { StakedPositionDto } from '@/domain/portfolio';
+import type { ProtocolReadStatus, StakedPositionDto } from '@/domain/portfolio';
 import { formatQuantity } from '@/lib/format';
 
 import { useMoney } from './DisplayProvider';
@@ -26,7 +26,7 @@ export function StakedPanel({
   status,
 }: {
   positions: readonly StakedPositionDto[];
-  status: 'ok' | 'failed' | 'unavailable';
+  status: ProtocolReadStatus;
 }) {
   if (status === 'failed') {
     return (

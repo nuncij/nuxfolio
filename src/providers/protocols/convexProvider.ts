@@ -2,6 +2,7 @@ import 'server-only';
 
 import { convexForChain } from '@/config/convex';
 import type { WalletAddress } from '@/domain/address';
+import type { ProtocolReadStatus } from '@/domain/portfolio';
 import type { RawStakedPosition } from '@/domain/stakedPosition';
 import { isStaked } from '@/domain/stakedPosition';
 
@@ -24,7 +25,7 @@ export type StakedRead = {
    * `failed` — asked, no answer.
    * `unavailable` — Convex is not deployed on this chain, or it has no Multicall3.
    */
-  readonly status: 'ok' | 'failed' | 'unavailable';
+  readonly status: ProtocolReadStatus;
 };
 
 export async function readStakedPositions(input: {

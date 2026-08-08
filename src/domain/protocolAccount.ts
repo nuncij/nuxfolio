@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 
+import type { ProtocolReadStatus } from './portfolio';
 import type { ProtocolPosition } from './protocolPosition';
 import type { ProtocolReward } from './protocolReward';
 
@@ -43,20 +44,16 @@ export type ProtocolAccountStatus = 'ok' | 'failed';
  * make the other wrong. A market whose totals are good but whose breakdown is missing
  * should show the totals — collapsing the two into one status would throw away a
  * perfectly good health factor because a second call timed out (review round 13, F5).
+ * Optimism proves it daily: `positions: unavailable` beside `rewards: ok`.
  *
- *  - `ok` — read, and the rows are the whole of it. An empty list here is a confirmed
- *    absence, not an unasked question.
- *  - `failed` — asked, and the market did not answer.
- *  - `unavailable` — this market has no verified detail provider, so its breakdown is
- *    permanently absent rather than temporarily. Two of the seven are in that state.
+ * There was briefly a fourth value, `not-requested`, for markets whose totals came back
+ * at zero on both sides: the breakdown was skipped there to save a call. Measured, that
+ * call costs 134 ms across all three Ethereum markets — and skipping it hid every supply
+ * with collateral switched off, which is invisible to the totals by definition.
  *
- * There was briefly a fourth, `not-requested`, for markets whose totals came back at
- * zero on both sides: the breakdown was skipped there to save a call. Measured, that
- * call costs 134 ms across all three Ethereum markets — and skipping it hid every
- * supply with collateral switched off, which is invisible to the totals by definition.
- * Paying the 134 ms buys back both the position and the fourth state (round 13).
+ * The values themselves are {@link ProtocolReadStatus}, shared with every other protocol.
  */
-export type PositionsStatus = 'ok' | 'failed' | 'unavailable';
+export type PositionsStatus = ProtocolReadStatus;
 
 export type ProtocolAccount = {
   readonly chainId: number;

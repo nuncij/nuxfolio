@@ -121,6 +121,27 @@ export const priceCheckSchema = z.object({
 
 export type PriceCheck = z.infer<typeof priceCheckSchema>;
 
+/**
+ * Whether a protocol read produced an answer.
+ *
+ * One definition for every protocol, because there were seven copies of this enum across
+ * five files by the time the second adapter landed and a fourth value would have had to
+ * be found in all of them.
+ *
+ *  - `ok` — read, and an empty result is a confirmed absence rather than an unasked
+ *    question.
+ *  - `failed` — asked, and the answer did not come. Says nothing about the wallet.
+ *  - `unavailable` — this protocol cannot be read here at all: not deployed on the
+ *    chain, or missing a contract the read depends on. Permanent, not transient.
+ *
+ * The distinction between the last two is the one this codebase exists to keep. Merging
+ * them would report "we have never been able to look" and "we could not look just now"
+ * as the same sentence.
+ */
+export const protocolReadStatusSchema = z.enum(['ok', 'failed', 'unavailable']);
+
+export type ProtocolReadStatus = z.infer<typeof protocolReadStatusSchema>;
+
 export const portfolioWarningSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
@@ -243,10 +264,10 @@ export const protocolAccountSchema = z.object({
    * market can report a good health factor beside a missing breakdown. `unavailable`
    * is permanent; `failed` may work on the next load.
    */
-  positionsStatus: z.enum(['ok', 'failed', 'unavailable']),
+  positionsStatus: protocolReadStatusSchema,
   /** Unclaimed incentives, read separately from the positions. */
   rewards: z.array(protocolRewardSchema),
-  rewardsStatus: z.enum(['ok', 'failed', 'unavailable']),
+  rewardsStatus: protocolReadStatusSchema,
 });
 
 export type ProtocolAccountDto = z.infer<typeof protocolAccountSchema>;
@@ -328,7 +349,7 @@ export const portfolioSchema = z.object({
    * see. Empty with `stakedStatus: 'ok'` is a confirmed absence.
    */
   stakedPositions: z.array(stakedPositionSchema),
-  stakedStatus: z.enum(['ok', 'failed', 'unavailable']),
+  stakedStatus: protocolReadStatusSchema,
   /**
    * The FX rate offered for display conversion, or null when none could be
    * fetched. Carried on the response rather than fetched by the browser: a

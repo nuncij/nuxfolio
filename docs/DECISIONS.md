@@ -1824,3 +1824,53 @@ the failure this product exists to avoid. The panel says which way it goes.
   staking wallet could be found to point the reader at. The registry decode, the
   shut-down filter and the sweep _are_ verified live; the decode of a non-zero balance is
   not. That is the weakest link in this feature and it is recorded as such.
+
+## ADR-031 — No `PositionProvider` interface; one shared status instead
+
+**Context.** Milestone 5 opened with an interface: per-protocol adapters behind a common
+`PositionProvider`, "the interface is the deliverable; adapters are then mechanical". It
+was deliberately inverted — an abstraction with one implementation is the kind this
+codebase rejects — and deferred until a second adapter existed to design against.
+
+Two now exist: Aave v3 (ADR-026, 027, 028, 029) and Convex (ADR-030). This is the
+decision the deferral was for.
+
+**Decision.** Do not build the interface. Extract the one thing that genuinely repeated,
+and record why the rest did not.
+
+**What actually repeated.** The three-value read status — `ok` / `failed` /
+`unavailable` — had been written out **seven times across five files** by the time the
+second adapter landed. It is now `protocolReadStatusSchema` with the type derived from
+it, so a fourth value is one edit rather than a hunt. That duplication was real and
+growing, and it is the kind that goes wrong quietly: a fifth copy that forgets a value
+compiles fine.
+
+**What did not repeat, and why an interface would have hurt.** The two adapters look
+similar from a distance and are different everywhere it matters:
+
+|              | Aave v3                                                            | Convex                                                                  |
+| ------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Returns      | accounts with debt, a health factor, positions and rewards         | staked balances                                                         |
+| Statuses     | **three** — the account, the breakdown, the rewards                | one                                                                     |
+| Priced by    | the protocol's own oracle, so rows reconcile with totals (ADR-027) | the app's source, because there is no total to reconcile with (ADR-030) |
+| When it runs | alongside the price request                                        | **before** it, so the staked token can be priced by it                  |
+| Rendered as  | `LendingPanel`                                                     | `StakedPanel`                                                           |
+
+A common interface would have to return a union or a lowest common denominator, and the
+service would immediately narrow it again to honour the ordering difference. Convex has
+to finish before the price refs are built; Aave must not block on them. That is not a
+detail an interface can hide — it is the difference between a position priced by its
+protocol and one priced like any other holding, which is itself a decision each adapter
+makes for its own reasons.
+
+**What the second adapter cost without one.** `multicall.ts` was extracted when Convex
+needed the same `aggregate3` decoding Aave already had — two callers, so it paid rent.
+Beyond that, Convex reused nothing and needed nothing new: no registry, no dispatch, no
+base class. The evidence that the interface is unnecessary is that the adapter it was
+supposed to make "mechanical" was written without it and is shorter for it.
+
+**The residual risk, accepted.** A third protocol may find real commonality these two do
+not have — a second lending market would look much more like Aave than Convex does. The
+answer then is to extract from three implementations, which is a better position than
+designing for a third that does not exist. Nothing here is harder to change later; the
+adapters are two independent functions with no shared surface to unpick.
