@@ -62,7 +62,7 @@ export const CONVEX_SELECTORS: Readonly<Record<string, string>> = {
 const CALLS_PER_HELD = 2;
 
 /** One registry entry, reduced to the parts a position needs. */
-type ConvexPool = {
+export type ConvexPool = {
   readonly stakedToken: string;
   readonly rewardPool: string;
 };
@@ -197,24 +197,67 @@ async function readRegistry(input: {
     if (result.success !== true) {
       continue;
     }
-    // (lptoken, token, gauge, crvRewards, stash, shutdown)
-    const [stakedToken, , , rewardPool, , shutdown] = decodeAbiParameters(
-      [
-        { type: 'address' },
-        { type: 'address' },
-        { type: 'address' },
-        { type: 'address' },
-        { type: 'address' },
-        { type: 'bool' },
-      ],
-      result.returnData,
-    );
-    if (!shutdown) {
-      pools.push({ stakedToken, rewardPool });
+    const pool = decodePool(result.returnData);
+    if (pool !== null) {
+      pools.push(pool);
     }
   }
 
   return { poolLength: input.poolLength, pools };
+}
+
+/**
+ * One registry row, in whichever of the two layouts the chain uses.
+ *
+ * **They are not the same struct**, which is how this shipped broken. Ethereum's Booster
+ * returns six words — `(lptoken, token, gauge, crvRewards, stash, shutdown)` — and the
+ * sidechain deployment on Arbitrum returns five: `(lptoken, gauge, rewards, shutdown,
+ * factory)`. The reward contract is at index 3 on one and index 2 on the other, and
+ * `shutdown` at 5 and 3. Decoding Arbitrum with Ethereum's shape threw, which is the only
+ * reason it failed loudly rather than sweeping every pool's *gauge* address and reporting
+ * a confidently empty result.
+ *
+ * The layout is chosen by the width of the answer rather than configured per chain. Both
+ * structs are entirely fixed-size types, so the response length is exact and says which
+ * one this is — the same preference for deriving over recording that ADR-027 and ADR-030
+ * both settled on.
+ *
+ * An unrecognised width returns null: one pool is skipped rather than swept at a guessed
+ * offset, because a guess here reads a real address that is the wrong contract.
+ */
+export function decodePool(data: Hex): ConvexPool | null {
+  const words = (data.length - 2) / 64;
+
+  const layout =
+    words === 6
+      ? ([
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'bool' },
+        ] as const)
+      : words === 5
+        ? ([
+            { type: 'address' },
+            { type: 'address' },
+            { type: 'address' },
+            { type: 'bool' },
+            { type: 'address' },
+          ] as const)
+        : null;
+
+  if (layout === null) {
+    return null;
+  }
+
+  const decoded = decodeAbiParameters(layout, data);
+  const stakedToken = decoded[0] as string;
+  const rewardPool = (words === 6 ? decoded[3] : decoded[2]) as string;
+  const shutdown = (words === 6 ? decoded[5] : decoded[3]) as boolean;
+
+  return shutdown ? null : { stakedToken, rewardPool };
 }
 
 function assertSuccess(

@@ -7,7 +7,7 @@ import { TEST_ADDRESS } from '@/test/helpers';
 
 import type { RpcRequester } from '../balances/jsonRpc';
 
-import { CONVEX_SELECTORS, readConvexPositions, resetConvexRegistry } from './convex';
+import { CONVEX_SELECTORS, decodePool, readConvexPositions, resetConvexRegistry } from './convex';
 
 /**
  * Shapes checked against Ethereum on 2026-08-08: the Booster reports 581 pools, of which
@@ -264,5 +264,63 @@ describe('the hardcoded selectors', () => {
     for (const [signature, selector] of Object.entries(CONVEX_SELECTORS)) {
       expect(toFunctionSelector(signature)).toBe(selector);
     }
+  });
+});
+
+describe('the two Booster layouts', () => {
+  /**
+   * Captured from the live contracts on 2026-08-08, pool id 1 on each chain. Ethereum's
+   * Booster answers with six words and the sidechain deployment on Arbitrum with five,
+   * and the reward contract sits at a different index in each. This shipped decoding
+   * both as Ethereum's shape, which threw on every Arbitrum pool.
+   */
+  const ETHEREUM = ('0x' +
+    '0000000000000000000000009fc689ccada600b6df723d9e47d84d76664a1f23' + // lptoken
+    '000000000000000000000000a1c3492b71938e144ad8be4c2fb6810b01a43dd8' + // token
+    '000000000000000000000000bc89cd85491d81c6ad2954e6d0362ee29fca8f53' + // gauge
+    '0000000000000000000000008b55351ea358e5eda371575b031ee24f462d503e' + // crvRewards
+    '0000000000000000000000000000000000000000000000000000000000000000' + // stash
+    '0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`; // shutdown
+
+  const ARBITRUM = ('0x' +
+    '0000000000000000000000007f90122bf0700f9e7e1f688fe926940e8839f353' + // lptoken
+    '000000000000000000000000ce5f24b7a95e9cba7df4b54e911b4a3dc8cdaf6f' + // gauge
+    '00000000000000000000000063f00f688086f0109d586501e783e33f2c950e78' + // rewards
+    '0000000000000000000000000000000000000000000000000000000000000001' + // shutdown
+    '000000000000000000000000abc000d88f23bb45525e447528dbf656a9d55bf5') as `0x${string}`; // factory
+
+  it('takes the reward contract from index 3 on Ethereum', () => {
+    expect(decodePool(ETHEREUM)).toEqual({
+      stakedToken: '0x9fC689CCaDa600B6DF723D9E47D84d76664a1F23',
+      rewardPool: '0x8B55351ea358e5Eda371575B031ee24F462d503e',
+    });
+  });
+
+  it('takes it from index 2 on the sidechain, where index 3 is a boolean', () => {
+    // Reading Arbitrum at Ethereum's offsets would sweep the *gauge* and read `shutdown`
+    // from an address — both real values, neither the right one.
+    const live = (ARBITRUM.slice(0, 2 + 3 * 64) +
+      '0'.repeat(64) +
+      ARBITRUM.slice(2 + 4 * 64)) as `0x${string}`;
+
+    expect(decodePool(live)).toEqual({
+      stakedToken: '0x7f90122BF0700F9E7e1F688fe926940E8839F353',
+      rewardPool: '0x63F00F688086F0109d586501E783e33f2C950e78',
+    });
+  });
+
+  it('drops a shut-down pool in either layout', () => {
+    // The Arbitrum fixture above is a real retired pool — 7 of its 39 are.
+    expect(decodePool(ARBITRUM)).toBeNull();
+
+    const retired = (ETHEREUM.slice(0, 2 + 5 * 64) + '0'.repeat(63) + '1') as `0x${string}`;
+    expect(decodePool(retired)).toBeNull();
+  });
+
+  it('skips a width it does not recognise rather than guessing an offset', () => {
+    // A guessed offset does not fail — it reads a real address that is the wrong
+    // contract, and the sweep then reports a confidently empty result.
+    expect(decodePool(('0x' + '0'.repeat(64 * 4)) as `0x${string}`)).toBeNull();
+    expect(decodePool('0x')).toBeNull();
   });
 });

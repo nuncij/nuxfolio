@@ -351,8 +351,9 @@ function PortfolioBody({
       <LendingPanel accounts={aggregate.chains.flatMap((chain) => chain.protocolAccounts)} />
       <StakedPanel
         positions={aggregate.chains.flatMap((chain) => chain.stakedPositions)}
-        // Any chain that failed makes the whole panel say so: a staked position missing
-        // from one network is missing from the page, and the reader cannot tell which.
+        // One network failing makes the panel say so, because a position missing from it
+        // is missing from the page — but the notice names which, so the reader is not
+        // left to wonder whether any of it was read.
         status={
           aggregate.chains.some((chain) => chain.stakedStatus === 'failed')
             ? 'failed'
@@ -360,6 +361,9 @@ function PortfolioBody({
               ? 'ok'
               : 'unavailable'
         }
+        failedOn={aggregate.chains
+          .filter((chain) => chain.stakedStatus === 'failed')
+          .map((chain) => chain.chainName)}
       />
       <WarningPanel warnings={collectAggregateWarnings(aggregate)} />
       <AssetTable assets={assets} explorerUrl={null} showChain initialSort={initialSort} />

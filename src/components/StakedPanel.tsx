@@ -24,9 +24,12 @@ import { useMoney } from './DisplayProvider';
 export function StakedPanel({
   positions,
   status,
+  failedOn = [],
 }: {
   positions: readonly StakedPositionDto[];
   status: ProtocolReadStatus;
+  /** Networks whose read failed, so the notice can name them instead of the page. */
+  failedOn?: readonly string[];
 }) {
   if (status === 'failed') {
     return (
@@ -35,9 +38,13 @@ export function StakedPanel({
         className="rounded-xl border border-line bg-surface p-4"
       >
         <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Staked</h2>
+        {/* Named, because "could not be read" without a where is a sentence a reader can
+            do nothing with — and because the first time this notice appeared it was the
+            only symptom of a decode bug on one network while the other was fine. */}
         <p className="mt-2 text-xs text-caution">
-          Convex could not be read this time, so any position staked there is missing from this
-          page. Nothing else on it is affected.
+          Convex could not be read
+          {failedOn.length > 0 ? ` on ${listNetworks(failedOn)}` : ''} this time, so any position
+          staked there is missing from this page. Nothing else on it is affected.
         </p>
       </section>
     );
@@ -81,6 +88,13 @@ export function StakedPanel({
       </dl>
     </section>
   );
+}
+
+function listNetworks(names: readonly string[]): string {
+  if (names.length <= 2) {
+    return names.join(' and ');
+  }
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 /**
