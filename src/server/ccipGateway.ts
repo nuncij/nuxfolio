@@ -2,6 +2,8 @@ import 'server-only';
 
 import { lookup } from 'node:dns/promises';
 
+import { CCIP_GATEWAY_HOSTS } from '@/config/ccipGateways';
+
 import { isPublicAddress } from './ssrfGuard';
 
 /**
@@ -17,13 +19,10 @@ import { isPublicAddress } from './ssrfGuard';
  *
  * **Two controls, and the first one is the one that matters.**
  *
- * 1. **The host must be on a list this project chose.** Measured on 2026-08-08: every
- *    offchain name tested resolved through `https://ccip-v2.ens.xyz`, ENS's own batch
- *    gateway, which fans out to the per-name gateways itself. So in the path this code
- *    takes, the destination is decided by the resolver contract *this project*
- *    configured, not by whoever registered the name. An allowlist therefore costs
- *    almost nothing in coverage and removes attacker-chosen destinations entirely —
- *    which is the whole of the original vulnerability.
+ * 1. **The host must be on a list this project chose** — see `config/ccipGateways.ts`,
+ *    which records how each entry was measured. This is the control that matters: it
+ *    turns an attacker-chosen destination into one this project picked, which removes
+ *    the original vulnerability rather than narrowing it.
  * 2. **The resolved address must be publicly routable**, checked per IP rather than by
  *    hostname, as defence in depth for an allowlisted host that is compromised or whose
  *    DNS is turned against it.
@@ -32,19 +31,13 @@ import { isPublicAddress } from './ssrfGuard';
  * with CCIP disabled. No name that works now can break; some that do not, start working.
  *
  * **Residual risk, stated rather than papered over.** A DNS answer can change between
- * the lookup here and the connection `fetch` makes — classic rebinding — and closing
- * that needs pinning the socket to the checked IP, which is not reachable through an
- * injected `fetch`. It is bounded by control 1: an attacker would have to compromise DNS
- * for a host on the list, at which point they have a better attack than this one.
+ * the lookup here and the connection `fetch` makes — classic rebinding — and closing it
+ * needs pinning the socket to the checked address, which an injected `fetch` cannot do.
+ * It is bounded by control 1: an attacker would have to take over DNS for Coinbase,
+ * Uniswap, Linea or ENS, at which point they have far better attacks available. The
+ * complete fix is an egress rule on the host, applied at packet-send time, which no
+ * amount of application code can substitute for.
  */
-
-/**
- * Gateways this project is willing to talk to.
- *
- * One entry, because one is what the measurement found. A list rather than a constant so
- * adding the second is an edit with a reason attached rather than a redesign.
- */
-export const ALLOWED_GATEWAY_HOSTS: readonly string[] = ['ccip-v2.ens.xyz'];
 
 /** Past this the gateway is answering with something that is not a CCIP response. */
 const MAX_RESPONSE_BYTES = 256 * 1024;
@@ -84,7 +77,7 @@ export async function ccipRequest(
   request: CcipRequest,
   dependencies: CcipDependencies,
 ): Promise<`0x${string}`> {
-  const allowed = new Set(dependencies.allowedHosts ?? ALLOWED_GATEWAY_HOSTS);
+  const allowed = new Set(dependencies.allowedHosts ?? CCIP_GATEWAY_HOSTS);
   const refuse = dependencies.onRefused ?? (() => {});
 
   let lastError: Error | null = null;

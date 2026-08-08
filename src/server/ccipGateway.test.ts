@@ -10,7 +10,7 @@ import { ccipRequest } from './ccipGateway';
 
 const SENDER = '0x1234567890123456789012345678901234567890';
 const DATA = '0xdeadbeef';
-const GATEWAY = 'https://ccip-v2.ens.xyz/{sender}/{data}.json';
+const GATEWAY = 'https://api.coinbase.com/{sender}/{data}.json';
 
 function deps(overrides: Partial<Parameters<typeof ccipRequest>[1]> = {}) {
   const fetchImpl = vi.fn(async () =>
@@ -53,18 +53,18 @@ describe('what it refuses to fetch', () => {
     // A gateway reached over http can be rewritten in flight by anything on the path.
     const dependencies = deps();
 
-    await expect(ask(['http://ccip-v2.ens.xyz/{sender}/{data}'], dependencies)).rejects.toThrow();
+    await expect(ask(['http://api.coinbase.com/{sender}/{data}'], dependencies)).rejects.toThrow();
 
     expect(dependencies.fetchImpl).not.toHaveBeenCalled();
   });
 
   it('refuses a URL that smuggles a different host through credentials', async () => {
-    // `https://ccip-v2.ens.xyz@evil.test/` parses with hostname `evil.test`; the check
+    // `https://api.coinbase.com@evil.test/` parses with hostname `evil.test`; the check
     // is on the parsed hostname, and credentials are refused outright as well.
     const dependencies = deps();
 
     await expect(
-      ask(['https://ccip-v2.ens.xyz@169.254.169.254/{sender}/{data}'], dependencies),
+      ask(['https://api.coinbase.com@169.254.169.254/{sender}/{data}'], dependencies),
     ).rejects.toThrow();
 
     expect(dependencies.fetchImpl).not.toHaveBeenCalled();
@@ -77,7 +77,7 @@ describe('what it refuses to fetch', () => {
     const dependencies = deps();
 
     await expect(
-      ask(['https://user:secret@ccip-v2.ens.xyz/{sender}/{data}'], dependencies),
+      ask(['https://user:secret@api.coinbase.com/{sender}/{data}'], dependencies),
     ).rejects.toThrow();
 
     expect(dependencies.fetchImpl).not.toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe('what it refuses to fetch', () => {
     const dependencies = deps();
 
     await expect(
-      ask(['https://ccip-v2.ens.xyz:4443/{sender}/{data}'], dependencies),
+      ask(['https://api.coinbase.com:4443/{sender}/{data}'], dependencies),
     ).rejects.toThrow();
 
     expect(dependencies.fetchImpl).not.toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe('how it talks to a gateway it accepts', () => {
   it('POSTs the payload when the template does not', async () => {
     const dependencies = deps();
 
-    await ask(['https://ccip-v2.ens.xyz/lookup'], dependencies);
+    await ask(['https://api.coinbase.com/lookup'], dependencies);
 
     const [, init] = (dependencies.fetchImpl as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(init.method).toBe('POST');

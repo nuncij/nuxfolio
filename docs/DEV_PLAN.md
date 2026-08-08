@@ -132,9 +132,10 @@ go-public checklist names Nuxfolio as a deliberate exception.
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | ~~Junk tokens inflating a total~~                                               | ✅ addressed by M2-1 (identity heuristics + accounting)                                      |
 | On-list junk airdrops still count toward the total (the list is the whitelist)  | accepted, ADR-014                                                                            |
+| ENS names outside `.eth` (`.cb.id`, `.box`) are rejected by the name pattern    | untouched by ADR-032 — a separate limitation                                                 |
 | Spoof detection covers a curated subset of Unicode confusables, not all of them | accepted, ADR-014 addendum — narrowed 2026-08-04, not closed                                 |
 | ~~The weekly list refresh reaches `main`, not the running app~~                 | ✅ ADR-018 addendum — the target pulls each build from CI on a 15-minute timer               |
-| Offchain/CCIP-resolved ENS names return not-found                               | round 4 F-01 — needs a hardened gateway fetch                                                |
+| ~~Offchain/CCIP-resolved ENS names return not-found~~                           | ✅ 2026-08-08 — on, behind a measured gateway allow list (ADR-032)                           |
 | ~~ENS lookups happen on the page-render path, outside the API rate limiter~~    | ✅ rate limited on the render path, 2026-08-05 (ADR-025)                                     |
 | ~~Single price source, no cross-check~~                                         | ✅ M2-2 / ADR-019 — verifier, needs the free Demo key                                        |
 | Cross-check covers 95 % of value, not every asset (quota)                       | accepted, ADR-019 — unchecked is reported, not implied                                       |

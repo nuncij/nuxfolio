@@ -1915,3 +1915,73 @@ not have — a second lending market would look much more like Aave than Convex 
 answer then is to extract from three implementations, which is a better position than
 designing for a third that does not exist. Nothing here is harder to change later; the
 adapters are two independent functions with no shared surface to unpick.
+
+## ADR-032 — Offchain ENS resolution, behind a measured gateway allow list
+
+**Reverses the "CCIP off" half of review round 4.** The vulnerability it identified is
+removed rather than avoided; the rest of that finding stands.
+
+**Context.** ERC-3668 tells a client to fetch a URL supplied by the name's own resolver —
+chosen by whoever registered the name. viem followed it with the global `fetch`, outside
+the injected client and outside the deadline, so anyone could register a name pointing at
+`http://169.254.169.254/…` and make this server issue requests inside its own network.
+Round 4 called that a blocker and disabled CCIP. The cost was that every offchain name —
+`*.base.eth`, `*.linea.eth`, gasless subdomains — returned "not found".
+
+**Decision.** CCIP is on, through a request function of this project's own, with two
+controls and a firm order of importance.
+
+**1. The destination must be a host this project chose.** `config/ccipGateways.ts` holds
+four, each measured on 2026-08-08 by resolving a name through the path the app actually
+takes and recording the URL without fetching it:
+
+| Host                                         | Serves              |
+| -------------------------------------------- | ------------------- |
+| `api.coinbase.com`                           | `*.base.eth`        |
+| `entry-gateway.backend-prod.api.uniswap.org` | `*.uni.eth`         |
+| `linea-ccip-gateway.linea.build`             | `*.linea.eth`       |
+| `ccip-v2.ens.xyz`                            | ENS's batch gateway |
+
+This is what removes the vulnerability: an attacker-chosen destination becomes one this
+project picked. `offchain-resolver-example.uc.r.appspot.com` was observed and left out —
+shared hosting is not a namespace.
+
+**2. The resolved address must be publicly routable**, checked per IP by
+`server/ssrfGuard.ts`, as defence in depth for a listed host whose DNS is turned against
+it. Plus: https only, port 443 only, no credentials, no redirects, at most three URLs
+per lookup, one shared deadline, and a streaming 256 KiB cap.
+
+**Why not the guard alone.** Without a list, every ENS registrant gets an
+outbound-request primitive from a small shared VPS. The guard stops _private_
+destinations; it does not stop the box being used to probe arbitrary public ones.
+
+**How the list nearly got built wrong.** The first measurement called
+`UniversalResolver.resolve` directly and saw one host, ENS's batch gateway — so the list
+was going to have a single entry. That was the wrong code path: viem's `getEnsAddress`
+uses `resolveWithGateways`, where the _name's own_ gateway comes through. A one-entry list
+would have blocked every real name while appearing to work. Caught by testing the fix
+against a live name rather than against the probe that justified it.
+
+**What an independent review then found in the guard itself.** Codex verified eight
+addresses that returned `safe: true`, including `::169.254.169.254` and `::127.0.0.1` —
+the deprecated IPv4-compatible spelling walked straight past the IPv4 table. Worse, the
+module's own comment claimed it denied by default while the IPv6 half denied a list and
+allowed the rest. IPv6 now permits only global unicast. It also found the allow list
+approving a host rather than an origin (any port), an unbounded URL loop, and a size cap
+that ran after the whole body had been buffered. All nine controls now fail a test when
+disabled.
+
+**Consequences.**
+
+- **A name whose gateway is not listed fails closed** — it resolves to nothing, which is
+  what every offchain name did yesterday. Nothing that worked can break, and the round-4
+  regression test still passes unchanged: a revert pointing at the metadata address costs
+  exactly zero extra requests.
+- **The list needs maintaining.** A new namespace is one line plus the measurement that
+  justifies it. Staleness shows up as a name not resolving, never as a wrong answer.
+- **DNS rebinding remains the residual**, bounded by control 1: an attacker would need to
+  take over DNS for Coinbase, Uniswap, Linea or ENS. The complete fix is an egress rule on
+  the host itself, applied at packet-send time — no application code substitutes for it,
+  and it is the one control worth adding if this box ever hosts anything sensitive.
+- **`.cb.id` and `.box` names still fail**, for an unrelated reason: the name pattern
+  accepts only `.eth`. That is a separate limitation and is untouched here.
