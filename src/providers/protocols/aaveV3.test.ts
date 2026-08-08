@@ -41,6 +41,7 @@ const MARKET: AaveMarket = {
   chainId: 1,
   poolAddress: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2' as WalletAddress,
   baseCurrencyDecimals: 8,
+  addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
   verifiedOn: '2026-08-06',
 };
 
@@ -49,8 +50,8 @@ const PRIME: AaveMarket = { ...MARKET, marketId: '1:prime', name: 'Aave v3 Prime
 /** The same market, with the trio of addresses that make a breakdown possible. */
 const WITH_DETAIL: AaveMarket = {
   ...MARKET,
+  addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
   detail: {
-    addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
     uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC' as WalletAddress,
   },
 };
@@ -71,6 +72,33 @@ function stubRequester(
 ) {
   return vi.fn(impl) as ReturnType<typeof vi.fn> & RpcRequester;
 }
+
+/**
+ * Answers by what was asked rather than by how many times.
+ *
+ * The position read and the reward read run concurrently, so a stub that hands out
+ * canned responses in order feeds each of them the other's answer. Routing on the
+ * calldata makes the tests describe a market rather than a call sequence — and it is
+ * what caught the interleaving when `Promise.all` arrived.
+ */
+function routingRequester(routes: readonly [match: string, response: string][]) {
+  return stubRequester(async (request) => {
+    const [params] = (request.params ?? []) as [{ data: string }];
+    const hit = routes.find(([match]) => params.data.toLowerCase().includes(match.toLowerCase()));
+    if (hit === undefined) {
+      throw new Error(`no route for ${params.data.slice(0, 34)}`);
+    }
+    return hit[1];
+  });
+}
+
+/** Fragments that identify each call this provider makes. */
+const ASKS = {
+  totals: '0xbf92857c',
+  userReserves: '3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC'.toLowerCase(),
+  reserveDetails: 'd15e0053',
+  rewardController: '21f8a721',
+};
 
 describe('decodeAccountData', () => {
   it('reads the three words it needs from a real response', () => {
@@ -127,7 +155,7 @@ describe('readAaveAccounts', () => {
   it('reads every market on the chain, not just the first', async () => {
     // Ethereum runs three markets; reading one would report a wallet that borrows
     // on Prime as debt-free (round 12, F-04).
-    const requester = stubRequester(async () => REAL_EMPTY_RESPONSE);
+    const requester = routingRequester([[ASKS.totals, REAL_EMPTY_RESPONSE]]);
 
     const accounts = await readAaveAccounts({
       address: TEST_ADDRESS,
@@ -137,7 +165,6 @@ describe('readAaveAccounts', () => {
       dependencies: dependencies(requester),
     });
 
-    expect(requester).toHaveBeenCalledTimes(2);
     expect(accounts.map((a) => a.marketId)).toEqual(['1:core', '1:prime']);
   });
 
@@ -256,9 +283,11 @@ const DETAIL_BATCH = encodeAbiParameters(parseAbiParameters('(bool,bytes)[]'), [
 
 describe('the breakdown, beside the totals rather than in front of them', () => {
   it('reads it when the market reports something to break down', async () => {
-    const responses = [BORROWING_RESPONSE, DETAIL_RESERVES, DETAIL_BATCH];
-    let call = 0;
-    const requester = stubRequester(async () => responses[call++]!);
+    const requester = routingRequester([
+      [ASKS.totals, BORROWING_RESPONSE],
+      [ASKS.userReserves, DETAIL_RESERVES],
+      [ASKS.reserveDetails, DETAIL_BATCH],
+    ]);
 
     const [account] = await readAaveAccounts({
       address: TEST_ADDRESS,
@@ -313,9 +342,11 @@ describe('the breakdown, beside the totals rather than in front of them', () => 
     // A supply with collateral switched off contributes to neither total. Skipping the
     // read here — which an earlier version did, to save a call measured at 134 ms
     // across all three Ethereum markets — hid exactly the position only this can show.
-    const responses = [REAL_EMPTY_RESPONSE, DETAIL_RESERVES, DETAIL_BATCH];
-    let call = 0;
-    const requester = stubRequester(async () => responses[call++]!);
+    const requester = routingRequester([
+      [ASKS.totals, REAL_EMPTY_RESPONSE],
+      [ASKS.userReserves, DETAIL_RESERVES],
+      [ASKS.reserveDetails, DETAIL_BATCH],
+    ]);
 
     const [account] = await readAaveAccounts({
       address: TEST_ADDRESS,
@@ -327,13 +358,12 @@ describe('the breakdown, beside the totals rather than in front of them', () => 
 
     expect(account).toMatchObject({ collateralValueUsd: '0', positionsStatus: 'ok' });
     expect(account?.positions).toHaveLength(1);
-    expect(requester).toHaveBeenCalledTimes(3);
   });
 
   it('reports a market with no verified provider as unavailable, not as failed', async () => {
     // Optimism and BNB. The breakdown is permanently absent there, which is a
     // different sentence from "could not be read this time".
-    const requester = stubRequester(async () => BORROWING_RESPONSE);
+    const requester = routingRequester([[ASKS.totals, BORROWING_RESPONSE]]);
 
     const [account] = await readAaveAccounts({
       address: TEST_ADDRESS,
@@ -343,8 +373,10 @@ describe('the breakdown, beside the totals rather than in front of them', () => 
       dependencies: dependencies(requester),
     });
 
+    // The breakdown is permanently absent; the rewards were attempted and did not
+    // answer. Two different sentences, and the whole reason they are separate fields.
     expect(account?.positionsStatus).toBe('unavailable');
-    expect(requester).toHaveBeenCalledTimes(1);
+    expect(account?.rewardsStatus).toBe('failed');
   });
 
   it('reports a chain with no Multicall3 as unavailable too', async () => {

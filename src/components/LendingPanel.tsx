@@ -2,7 +2,11 @@
 
 import { Decimal } from 'decimal.js';
 
-import type { ProtocolAccountDto, ProtocolPositionDto } from '@/domain/portfolio';
+import type {
+  ProtocolAccountDto,
+  ProtocolPositionDto,
+  ProtocolRewardDto,
+} from '@/domain/portfolio';
 import { hasPosition, summarizeAccounts } from '@/domain/protocolAccount';
 
 import { formatHealthFactor, formatQuantity } from '@/lib/format';
@@ -125,6 +129,7 @@ function MarketRow({ account }: { account: ProtocolAccountDto }) {
       </div>
 
       <Breakdown account={account} />
+      <Rewards account={account} />
     </>
   );
 }
@@ -179,6 +184,63 @@ function Breakdown({ account }: { account: ProtocolAccountDto }) {
       <PositionGroup label="Supplied" positions={supplied} side="supplied" />
       <PositionGroup label="Borrowed" positions={borrowed} side="borrowed" />
     </dl>
+  );
+}
+
+/**
+ * What the market owes but has not paid.
+ *
+ * Below the positions rather than among them: this is not held, it is claimable, and
+ * claiming costs a transaction. It is summed into nothing on the page for the same
+ * reason.
+ *
+ * Most of these are dust. Measured on Optimism, of eighteen wallets with anything
+ * unclaimed, most were owed a few hundred-thousandths of an OP — while one was owed
+ * $104. Both are shown at their true size, because the alternative is a threshold
+ * nobody picked hiding money somebody wanted.
+ */
+function Rewards({ account }: { account: ProtocolAccountDto }) {
+  if (account.rewardsStatus === 'failed') {
+    return (
+      <p className="mt-1 text-xs text-caution">Unclaimed rewards could not be read this time.</p>
+    );
+  }
+
+  if (account.rewards.length === 0) {
+    // Nothing, rather than "0 unclaimed". `unavailable` says nothing here either: the
+    // breakdown above already explains what this market cannot report.
+    return null;
+  }
+
+  return (
+    <dl className="mt-2 space-y-2 border-l border-line pl-3">
+      <div>
+        <dt className="text-xs text-ink-subtle uppercase">Unclaimed rewards</dt>
+        {account.rewards.map((reward) => (
+          <dd key={reward.token}>
+            <RewardRow reward={reward} />
+          </dd>
+        ))}
+      </div>
+    </dl>
+  );
+}
+
+function RewardRow({ reward }: { reward: ProtocolRewardDto }) {
+  const money = useMoney();
+
+  return (
+    <div className="grid gap-x-4 text-sm sm:grid-cols-[6rem_9rem_1fr] sm:items-baseline">
+      <span className="text-ink">{reward.symbol ?? shortAddress(reward.token)}</span>
+      <span className="numeric text-ink-muted sm:text-right">{formatQuantity(reward.amount)}</span>
+      {reward.valueUsd === null ? (
+        // Usual on Ethereum, where the reward is itself an aToken and the market oracle
+        // has no feed for it. The amount is still true.
+        <span className="text-xs text-ink-subtle sm:text-right">No price from the market</span>
+      ) : (
+        <span className="numeric text-ink sm:text-right">{money(reward.valueUsd)}</span>
+      )}
+    </div>
   );
 }
 

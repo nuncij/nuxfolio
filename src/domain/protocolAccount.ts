@@ -1,6 +1,7 @@
 import { Decimal } from 'decimal.js';
 
 import type { ProtocolPosition } from './protocolPosition';
+import type { ProtocolReward } from './protocolReward';
 
 /**
  * What a wallet owes a lending protocol, and how close it is to liquidation.
@@ -89,6 +90,13 @@ export type ProtocolAccount = {
    */
   readonly positions: readonly ProtocolPosition[];
   readonly positionsStatus: PositionsStatus;
+  /**
+   * Incentives the market owes but has not paid out. Not a position and not an asset:
+   * claiming is a transaction, so this is never summed into anything above it.
+   */
+  readonly rewards: readonly ProtocolReward[];
+  /** Read separately from the positions, so one failing does not cost the other. */
+  readonly rewardsStatus: PositionsStatus;
 };
 
 /** What one market's raw `getUserAccountData` returns, before any scaling. */
@@ -112,6 +120,8 @@ export function toProtocolAccount(input: {
   raw: RawAccountData;
   positions?: readonly ProtocolPosition[];
   positionsStatus: PositionsStatus;
+  rewards?: readonly ProtocolReward[];
+  rewardsStatus: PositionsStatus;
 }): ProtocolAccount {
   const { raw } = input;
 
@@ -126,6 +136,8 @@ export function toProtocolAccount(input: {
     healthFactor: toHealthFactor(raw.healthFactor),
     positions: input.positions ?? [],
     positionsStatus: input.positionsStatus,
+    rewards: input.rewards ?? [],
+    rewardsStatus: input.rewardsStatus,
   };
 }
 
@@ -135,6 +147,7 @@ export function failedProtocolAccount(input: {
   marketId: string;
   marketName: string;
   positionsStatus: PositionsStatus;
+  rewardsStatus: PositionsStatus;
 }): ProtocolAccount {
   return {
     chainId: input.chainId,
@@ -147,6 +160,8 @@ export function failedProtocolAccount(input: {
     healthFactor: null,
     positions: [],
     positionsStatus: input.positionsStatus,
+    rewards: [],
+    rewardsStatus: input.rewardsStatus,
   };
 }
 
@@ -175,8 +190,10 @@ export function hasPosition(account: ProtocolAccount): boolean {
     isPositive(account.borrowedValueUsd) ||
     // A supply with collateral switched off contributes to neither total, so without
     // this clause the one wallet whose position is *only* visible in the breakdown
-    // would see an empty panel.
-    account.positions.length > 0
+    // would see an empty panel. Rewards do the same: measured on Optimism, most wallets
+    // with something unclaimed hold nothing in the market any more.
+    account.positions.length > 0 ||
+    account.rewards.length > 0
   );
 }
 

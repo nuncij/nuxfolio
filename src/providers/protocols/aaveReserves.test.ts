@@ -35,8 +35,8 @@ const MARKET: AaveMarket = {
   chainId: 1,
   poolAddress: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2' as WalletAddress,
   baseCurrencyDecimals: 8,
+  addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
   detail: {
-    addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e' as WalletAddress,
     uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC' as WalletAddress,
   },
   verifiedOn: '2026-08-07',

@@ -151,6 +151,7 @@ export function buildPortfolio(input: BuildPortfolioInput): Portfolio {
     protocolAccounts: (input.protocolAccounts ?? []).map((account) => ({
       ...account,
       positions: [...account.positions],
+      rewards: [...account.rewards],
     })),
     totalValueUsd: pricedSubtotal,
     assetCount: assets.length,

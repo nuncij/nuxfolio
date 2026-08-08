@@ -202,6 +202,20 @@ export const protocolPositionSchema = z.object({
 export type ProtocolPositionDto = z.infer<typeof protocolPositionSchema>;
 
 /**
+ * An unclaimed incentive. Owed to the wallet, not held by it — claiming is a
+ * transaction — so it is summed into nothing.
+ */
+export const protocolRewardSchema = z.object({
+  token: z.string().min(1),
+  symbol: z.string().min(1).nullable(),
+  amount: decimalString,
+  /** Null when the market oracle has no price for the reward token, which is usual. */
+  valueUsd: decimalString.nullable(),
+});
+
+export type ProtocolRewardDto = z.infer<typeof protocolRewardSchema>;
+
+/**
  * A lending-protocol account, beside the assets rather than among them.
  *
  * Never summed into `totalValueUsd`. These figures come from the protocol's own
@@ -228,6 +242,9 @@ export const protocolAccountSchema = z.object({
    * is permanent; `failed` may work on the next load.
    */
   positionsStatus: z.enum(['ok', 'failed', 'unavailable']),
+  /** Unclaimed incentives, read separately from the positions. */
+  rewards: z.array(protocolRewardSchema),
+  rewardsStatus: z.enum(['ok', 'failed', 'unavailable']),
 });
 
 export type ProtocolAccountDto = z.infer<typeof protocolAccountSchema>;

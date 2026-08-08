@@ -10,7 +10,7 @@ import {
 } from './protocolAccount';
 
 const MARKET = { chainId: 1, marketId: '1:core', marketName: 'Aave v3 Core' };
-const READ = { ...MARKET, positionsStatus: 'ok' } as const;
+const READ = { ...MARKET, positionsStatus: 'ok', rewardsStatus: 'ok' } as const;
 
 /** `uint256` max — what Aave returns as the health factor when there is no debt. */
 const NO_DEBT = (2n ** 256n - 1n).toString();
@@ -27,6 +27,8 @@ function account(overrides: Partial<ProtocolAccount> = {}): ProtocolAccount {
     healthFactor: null,
     positions: [],
     positionsStatus: 'ok',
+    rewards: [],
+    rewardsStatus: 'ok',
     ...overrides,
   };
 }
@@ -106,7 +108,11 @@ describe('failedProtocolAccount', () => {
   it('reports absence, never zero', () => {
     // The distinction the whole type exists for: a read that did not answer says
     // nothing about the wallet, and must not render as "no debt".
-    const result = failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' });
+    const result = failedProtocolAccount({
+      ...MARKET,
+      positionsStatus: 'failed',
+      rewardsStatus: 'failed',
+    });
 
     expect(result.status).toBe('failed');
     expect(result.borrowedValueUsd).toBeNull();
@@ -141,7 +147,11 @@ describe('hasPosition', () => {
   });
 
   it('is true for a failed read, because that is not "no position"', () => {
-    expect(hasPosition(failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' }))).toBe(true);
+    expect(
+      hasPosition(
+        failedProtocolAccount({ ...MARKET, positionsStatus: 'failed', rewardsStatus: 'failed' }),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -163,7 +173,12 @@ describe('summarizeAccounts', () => {
     // failed read into a smaller complete-looking debt figure (round 12, F-06).
     const summary = summarizeAccounts([
       account({ borrowedValueUsd: '40000' }),
-      failedProtocolAccount({ ...MARKET, marketId: '1:prime', positionsStatus: 'failed' }),
+      failedProtocolAccount({
+        ...MARKET,
+        marketId: '1:prime',
+        positionsStatus: 'failed',
+        rewardsStatus: 'failed',
+      }),
     ]);
 
     expect(summary.borrowedValueUsd).toBe('40000');
@@ -173,8 +188,13 @@ describe('summarizeAccounts', () => {
 
   it('returns null debt when every market failed, not zero', () => {
     const summary = summarizeAccounts([
-      failedProtocolAccount({ ...MARKET, positionsStatus: 'failed' }),
-      failedProtocolAccount({ ...MARKET, marketId: '1:prime', positionsStatus: 'failed' }),
+      failedProtocolAccount({ ...MARKET, positionsStatus: 'failed', rewardsStatus: 'failed' }),
+      failedProtocolAccount({
+        ...MARKET,
+        marketId: '1:prime',
+        positionsStatus: 'failed',
+        rewardsStatus: 'failed',
+      }),
     ]);
 
     expect(summary.borrowedValueUsd).toBeNull();

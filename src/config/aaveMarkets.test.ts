@@ -61,12 +61,18 @@ describe('marketsWithDetail', () => {
     expect(marketsWithDetail(8453)).toHaveLength(1);
   });
 
-  it('never returns a market without both addresses', () => {
+  it('never returns a market without a UI data provider', () => {
     for (const market of AAVE_MARKETS) {
-      const hasBoth =
-        market.detail?.addressesProvider !== undefined &&
-        market.detail?.uiPoolDataProvider !== undefined;
-      expect(marketsWithDetail(market.chainId).includes(market)).toBe(hasBoth);
+      const hasProvider = market.detail?.uiPoolDataProvider !== undefined;
+      expect(marketsWithDetail(market.chainId).includes(market)).toBe(hasProvider);
+    }
+  });
+
+  it('gives every market an addresses provider, including the two without detail', () => {
+    // Rewards, the price oracle and the incentives controller are all found through it,
+    // and none of them needs the `UiPoolDataProvider` the other two markets lack.
+    for (const market of AAVE_MARKETS) {
+      expect(market.addressesProvider).toMatch(/^0x[0-9a-fA-F]{40}$/);
     }
   });
 });

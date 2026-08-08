@@ -40,24 +40,26 @@ export type AaveMarket = {
    */
   readonly baseCurrencyDecimals: number;
   /**
-   * The market's `PoolAddressesProvider`, derived from the pool itself rather than
-   * copied from a deployment list, the `UiPoolDataProvider` that answers
-   * `getUserReservesData` for it, and the market's own `AaveOracle`.
+   * The market's `PoolAddressesProvider`, read from the pool's own
+   * `ADDRESSES_PROVIDER()` rather than copied from a deployment list.
    *
-   * **Optional, and its absence is meaningful.** A market without a verified trio
-   * still reports account-level totals and a health factor (M5-1); it simply cannot
-   * report which assets those are made of. Two of the seven markets are in that
-   * state — the provider addresses this project had for them did not answer, and a
+   * Required, and the root of everything else: the price oracle and the rewards
+   * controller are both looked up through it at request time rather than configured.
+   * A stale pool address stops answering and fails loudly, but a stale *oracle* would
+   * keep returning plausible prices from a market nobody uses any more, and the rows
+   * would quietly stop adding up to the totals (review round 13).
+   */
+  readonly addressesProvider: WalletAddress;
+  /**
+   * The `UiPoolDataProvider` that answers `getUserReservesData` for this market.
+   *
+   * **Optional, and its absence is meaningful.** A market without one still reports
+   * account-level totals, a health factor and unclaimed rewards — none of which need
+   * it — but cannot say which assets the totals are made of. Two of the seven markets
+   * are in that state: the addresses this project had for them did not answer, and a
    * guessed address that silently decodes to nonsense is worse than a stated gap.
-   *
-   * The market's own price oracle is deliberately **not** here. It is read from the
-   * addresses provider at request time instead, in the same batch as the balances, so
-   * it costs nothing: a stale pool address stops answering and fails loudly, but a
-   * stale oracle keeps returning plausible prices from a market nobody uses any more,
-   * and the rows would quietly stop adding up to the totals (review round 13).
    */
   readonly detail?: {
-    readonly addressesProvider: WalletAddress;
     readonly uiPoolDataProvider: WalletAddress;
   };
   /** When the addresses above were last verified against a live endpoint. */
@@ -71,8 +73,8 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   // borrows on Prime or EtherFi as debt-free.
   {
     marketId: '1:core',
+    addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e',
     detail: {
-      addressesProvider: '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e',
       uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
     },
     name: 'Aave v3 Core',
@@ -83,8 +85,8 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '1:prime',
+    addressesProvider: '0xcfBf336fe147D643B9Cb705648500e101504B16d',
     detail: {
-      addressesProvider: '0xcfBf336fe147D643B9Cb705648500e101504B16d',
       uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
     },
     name: 'Aave v3 Prime',
@@ -95,8 +97,8 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '1:etherfi',
+    addressesProvider: '0xeBa440B438Ad808101d1c451C1C5322c90BEFCdA',
     detail: {
-      addressesProvider: '0xeBa440B438Ad808101d1c451C1C5322c90BEFCdA',
       uiPoolDataProvider: '0x3F78BBD206e4D3c504Eb854232EdA7e47E9Fd8FC',
     },
     name: 'Aave v3 EtherFi',
@@ -107,8 +109,8 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '8453:base',
+    addressesProvider: '0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D',
     detail: {
-      addressesProvider: '0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D',
       uiPoolDataProvider: '0x68100bD5345eA474D93577127C11F39FF8463e93',
     },
     name: 'Aave v3',
@@ -119,8 +121,8 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '42161:arbitrum',
+    addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
     detail: {
-      addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
       uiPoolDataProvider: '0x5c5228aC8BC1528482514aF3e27E692495148717',
     },
     name: 'Aave v3',
@@ -131,19 +133,21 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
   },
   {
     marketId: '10:optimism',
+    addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
     name: 'Aave v3',
     chainId: 10,
     poolAddress: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-08',
   },
   {
     marketId: '56:bnb',
+    addressesProvider: '0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D',
     name: 'Aave v3',
     chainId: 56,
     poolAddress: '0x6807dc923806fE8Fd134338EABCA509979a7e0cB',
     baseCurrencyDecimals: USD_8,
-    verifiedOn: '2026-08-06',
+    verifiedOn: '2026-08-08',
   },
 ];
 

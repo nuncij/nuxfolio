@@ -9,11 +9,13 @@ import {
   type ProtocolAccount,
 } from '@/domain/protocolAccount';
 import { toProtocolPosition, type ProtocolPosition } from '@/domain/protocolPosition';
+import { isUnclaimed, toProtocolReward, type ProtocolReward } from '@/domain/protocolReward';
 
 import { createRpcRequester, type RpcRequester } from '../balances/jsonRpc';
 import { ProviderError, type ProviderContext } from '../types';
 
 import { readMarketReserves } from './aaveReserves';
+import { readMarketRewards } from './aaveRewards';
 
 /**
  * Reads Aave v3 borrower state: collateral, debt, how close the wallet is to
@@ -125,18 +127,19 @@ async function readMarket(input: {
     return failedProtocolAccount({
       ...identity,
       positionsStatus: canReadDetail(market, multicallAddress) ? 'failed' : 'unavailable',
+      rewardsStatus: multicallAddress === null ? 'unavailable' : 'failed',
     });
   }
 
-  const detail = await readPositions({
-    address,
-    market,
-    multicallAddress,
-    requester,
-    dependencies,
-  });
+  // Concurrent, not sequential. They share nothing, and the rewards read costs three
+  // round trips to the position read's two — in series every market would take five,
+  // for a figure that is usually dust.
+  const [detail, rewards] = await Promise.all([
+    readPositions({ address, market, multicallAddress, requester, dependencies }),
+    readRewards({ address, market, multicallAddress, requester, dependencies }),
+  ]);
 
-  return toProtocolAccount({ ...identity, raw, ...detail });
+  return toProtocolAccount({ ...identity, raw, ...detail, ...rewards });
 }
 
 /**
@@ -193,6 +196,50 @@ function canReadDetail(
   multicallAddress: WalletAddress | null,
 ): multicallAddress is WalletAddress {
   return market.detail !== undefined && multicallAddress !== null;
+}
+
+/**
+ * Unclaimed incentives, or a stated reason there are none to show.
+ *
+ * Never throws, for the same reason `readPositions` does not: the totals are already in
+ * hand, and a reward read is the least important thing on the panel.
+ */
+async function readRewards(input: {
+  address: WalletAddress;
+  market: AaveMarket;
+  multicallAddress: WalletAddress | null;
+  requester: RpcRequester;
+  dependencies: AaveDependencies;
+}): Promise<{ rewards: readonly ProtocolReward[]; rewardsStatus: PositionsStatus }> {
+  const { market, multicallAddress, dependencies } = input;
+
+  // Deliberately not `canReadDetail`: rewards need the addresses provider and the pool,
+  // never the `UiPoolDataProvider`. Gating them together denied rewards to Optimism,
+  // which of all seven markets has the most assets actually emitting.
+  if (multicallAddress === null) {
+    return { rewards: [], rewardsStatus: 'unavailable' };
+  }
+  if (dependencies.context.deadline.hasExpired()) {
+    return { rewards: [], rewardsStatus: 'failed' };
+  }
+
+  try {
+    const raw = await readMarketRewards({
+      address: input.address,
+      market,
+      multicallAddress,
+      requester: input.requester,
+    });
+    return {
+      // `getAllUserRewards` answers for every reward the market ever configured, so most
+      // entries are zero. A zero reward is not a reward.
+      rewards: raw.filter(isUnclaimed).map(toProtocolReward),
+      rewardsStatus: 'ok',
+    };
+  } catch (error) {
+    logFailure(dependencies, 'aave.rewards_read_failed', market.marketId, error);
+    return { rewards: [], rewardsStatus: 'failed' };
+  }
 }
 
 function logFailure(

@@ -1636,3 +1636,65 @@ both zero. An earlier version skipped those to save a call; measured, that call 
 collateral switched off — the one position that is invisible to the totals by
 definition, and therefore the only one the breakdown alone can show. Paying the 134 ms
 closes the gap ADR-026 recorded as out of scope.
+
+## ADR-028 — Unclaimed rewards are read from every token a market has, not every token the wallet holds
+
+**Context.** M5-4 adds the last piece of the Aave v3 adapter: incentives the market owes
+but has not paid. `RewardsController.getAllUserRewards(assets, user)` answers it, and the
+only question is what to pass as `assets`.
+
+The cheap answer is the aTokens and debt tokens the wallet still holds — M5-2 already
+knows them, and it costs nothing extra. **That answer is wrong**, and measurement rather
+than reasoning is what showed it.
+
+**Decision.** Pass **every** aToken and variable-debt token in the market, fetched for the
+purpose, and accept the extra round trip that requires.
+
+**Why.** The controller banks accrued rewards **per asset**. A wallet that supplied,
+earned, and then withdrew in full keeps a balance that only that asset's entry can find.
+Measured on Optimism on 2026-08-08, across forty wallets picked from recent aToken
+transfers:
+
+|                                                        |                                    |
+| ------------------------------------------------------ | ---------------------------------- |
+| Wallets with unclaimed OP                              | **18**                             |
+| …that a held-tokens-only list would report as **zero** | **14**                             |
+| Largest balance found                                  | **1,185.24 OP — $104**             |
+| Typical balance found                                  | a few hundred-thousandths of an OP |
+
+One of the fourteen was owed 0.915 OP while holding nothing in the market at all.
+Passing an empty asset list returns zero, which is the experiment that exposed the
+mechanism before the shortcut shipped rather than after.
+
+**The distribution is the uncomfortable part, and it is recorded rather than smoothed
+over.** Most unclaimed balances are dust worth a fraction of a cent. Both extremes are
+shown at their true size: a threshold that hid the dust would be a number nobody chose
+deciding what counts as money.
+
+**Rewards do not need the `UiPoolDataProvider`.** The first version gated them behind the
+same check as the position breakdown, which denied them to Optimism and BNB — and
+Optimism has the most assets actually emitting of any market registered, fourteen of
+twenty-eight. Rewards need the pool and the addresses provider, both of which every
+market has. `addressesProvider` was promoted out of the optional `detail` block for this
+reason: it is the root everything else is derived from, while the UI data provider is the
+one genuinely optional extra.
+
+**Everything is derived, nothing is configured.** The rewards controller comes from
+`PoolAddressesProvider.getAddress(keccak256("INCENTIVES_CONTROLLER"))` — verified to
+return the live controller — and the price oracle from the same provider, exactly as
+ADR-027 does. No new addresses entered the registry for this feature.
+
+**Consequences.**
+
+- **A reward the market oracle cannot price shows an amount and no value.** Four of the
+  five reward tokens Ethereum has configured are themselves aTokens, and `getAssetPrice`
+  reverts for every one. That makes "no price" the ordinary case here rather than the
+  exceptional one, so the price sub-call is allowed to fail and the amount stands alone.
+- **`rewardsStatus` is separate from `positionsStatus`.** They are different reads over
+  different contracts, and Optimism is the proof: it reports `positions: unavailable`
+  beside `rewards: ok`, which is two true sentences that one field could not carry.
+- **The reward read runs concurrently with the position read.** It costs three round
+  trips to the position read's two; in series every market would take five.
+- **A wallet with only rewards gets a panel.** `hasPosition` counts them, because most
+  wallets with something unclaimed hold nothing in the market any more — the same
+  measurement, applied to the question of whether to render at all.

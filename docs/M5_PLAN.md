@@ -360,5 +360,13 @@ from a confirmed absence. §6's instruction to put it on the response is met by 
 warning travelling in `warnings`, with no new field: what protocols are read varies by
 neither wallet nor chain, so a field stating it would state a constant.
 
-**Unclaimed rewards were in scope and are absent.** §5's table put rewards in the Aave
-adapter's "full shape". No `RewardsController` read exists. Tracked as M5-4.
+**Unclaimed rewards were in scope, and shipped on 2026-08-08 as M5-4.** §5's table put
+rewards in the Aave adapter's "full shape", and M5-1 and M5-2 both went out without them.
+
+The interesting part was not the reading but the asset list. `getAllUserRewards` takes
+the tokens to ask about, and the free answer — the ones M5-2 already knows the wallet
+holds — is wrong: the controller banks accrued rewards per asset, so a wallet that
+withdrew in full keeps a balance only that asset's entry can find. Measured across forty
+Optimism wallets, eighteen had unclaimed OP and **fourteen of those would have read
+zero**. See ADR-028, including the distribution: most balances are dust, one was $104,
+and both are shown at their true size.

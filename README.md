@@ -153,8 +153,8 @@ tokens in the wallet. **Aave v3 borrowing is also shown**: collateral, debt and 
 health factor, read from the protocol's own accounting rather than inferred from
 tokens (ADR-026) — and, per market, **which assets** those totals are made of. Rows are
 priced by the market's own oracle, so they sum to the totals above them exactly
-(ADR-027). What is still missing is any lending protocol other than Aave v3, LP
-composition and unclaimed rewards.
+(ADR-027) — and any unclaimed incentives the market owes (ADR-028). What is still missing
+is any lending protocol other than Aave v3, and LP composition.
 
 Adding a sixth chain is one registry entry plus `pnpm tokens:generate`.
 
@@ -318,8 +318,9 @@ callers share one bucket with a higher ceiling. See ADR-008.
    intent: a token on the bundled list is always trusted, and the confusable map is a
    curated subset of Unicode rather than all of it.
 5. No persistence and no history — every load is a live read.
-6. Protocol accounting is read for **Aave v3 only** — no other lending protocol, no LP
-   composition, and no unclaimed rewards, not even Aave's own (M5-4). The page says so
+6. Protocol accounting is read for **Aave v3 only** — no other lending protocol and no
+   LP composition. Within Aave it is complete: collateral, debt, the health factor, which
+   assets each is made of, and unclaimed incentives. The page says what it does not cover
    rather than leaving it to be discovered: the lending panel's caption leads with "Aave
    v3 only", and a caveat states it on every wallet, including one with no lending panel
    at all — which is the wallet that cannot otherwise tell "not checked" from "nothing

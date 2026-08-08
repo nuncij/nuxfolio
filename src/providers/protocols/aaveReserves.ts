@@ -1,12 +1,6 @@
 import 'server-only';
 
-import {
-  decodeAbiParameters,
-  decodeFunctionResult,
-  encodeFunctionData,
-  hexToString,
-  type Hex,
-} from 'viem';
+import { decodeAbiParameters, decodeFunctionResult, encodeFunctionData, type Hex } from 'viem';
 
 import type { AaveMarket } from '@/config/aaveMarkets';
 import type { WalletAddress } from '@/domain/address';
@@ -14,6 +8,8 @@ import { rayMulDebt, rayMulSupply } from '@/domain/rayMath';
 
 import type { RpcRequester } from '../balances/jsonRpc';
 import { ProviderError } from '../types';
+
+import { aggregate3, decodeAddress, decodeSymbol } from './multicall';
 
 /**
  * Which assets a wallet supplied and borrowed, per market, and what each is worth.
@@ -111,35 +107,6 @@ const oracleAbi = [
   },
 ] as const;
 
-const aggregate3Abi = [
-  {
-    type: 'function',
-    name: 'aggregate3',
-    stateMutability: 'payable',
-    inputs: [
-      {
-        name: 'calls',
-        type: 'tuple[]',
-        components: [
-          { name: 'target', type: 'address' },
-          { name: 'allowFailure', type: 'bool' },
-          { name: 'callData', type: 'bytes' },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        name: 'returnData',
-        type: 'tuple[]',
-        components: [
-          { name: 'success', type: 'bool' },
-          { name: 'returnData', type: 'bytes' },
-        ],
-      },
-    ],
-  },
-] as const;
-
 /** One asset a wallet has a position in, in base units of that asset. */
 export type ReservePosition = {
   readonly underlyingAsset: string;
@@ -189,7 +156,8 @@ export async function readMarketReserves(input: {
 
   const { reserves, priceOracle } = await readUserReserves({
     address,
-    detail: market.detail,
+    addressesProvider: market.addressesProvider,
+    uiPoolDataProvider: market.detail.uiPoolDataProvider,
     multicallAddress,
     requester,
   });
@@ -246,7 +214,8 @@ export async function readMarketReserves(input: {
  */
 async function readUserReserves(input: {
   address: WalletAddress;
-  detail: { addressesProvider: WalletAddress; uiPoolDataProvider: WalletAddress };
+  addressesProvider: WalletAddress;
+  uiPoolDataProvider: WalletAddress;
   multicallAddress: string;
   requester: RpcRequester;
 }): Promise<{
@@ -258,20 +227,25 @@ async function readUserReserves(input: {
   }[];
   priceOracle: string;
 }> {
-  const { address, detail, multicallAddress, requester } = input;
+  const { address, addressesProvider, uiPoolDataProvider, multicallAddress, requester } = input;
 
-  const results = await aggregate3(requester, multicallAddress, [
-    {
-      target: detail.uiPoolDataProvider,
-      allowFailure: false,
-      callData: encodeFunctionData({
-        abi: userReservesAbi,
-        functionName: 'getUserReservesData',
-        args: [detail.addressesProvider, address],
-      }),
-    },
-    { target: detail.addressesProvider, allowFailure: false, callData: PRICE_ORACLE },
-  ]);
+  const results = await aggregate3(
+    requester,
+    multicallAddress,
+    [
+      {
+        target: uiPoolDataProvider,
+        allowFailure: false,
+        callData: encodeFunctionData({
+          abi: userReservesAbi,
+          functionName: 'getUserReservesData',
+          args: [addressesProvider, address],
+        }),
+      },
+      { target: addressesProvider, allowFailure: false, callData: PRICE_ORACLE },
+    ],
+    PROVIDER_ID,
+  );
 
   const [userData, oracle] = results;
   if (userData?.success !== true || oracle?.success !== true) {
@@ -284,7 +258,7 @@ async function readUserReserves(input: {
     data: userData.returnData,
   });
 
-  return { reserves, priceOracle: `0x${oracle.returnData.slice(-40)}` };
+  return { reserves, priceOracle: decodeAddress(oracle.returnData, PROVIDER_ID) };
 }
 
 type ReserveDetail = {
@@ -343,7 +317,7 @@ async function readReserveDetails(input: {
     }),
   ];
 
-  const results = await aggregate3(requester, multicallAddress, calls);
+  const results = await aggregate3(requester, multicallAddress, calls, PROVIDER_ID);
 
   const priceResult = results[0];
   if (priceResult?.success !== true) {
@@ -383,75 +357,4 @@ async function readReserveDetails(input: {
       priceBase: price === 0n ? null : price,
     };
   });
-}
-
-type Call = { target: string; allowFailure: boolean; callData: string };
-
-/**
- * One `Multicall3.aggregate3`, with the length of the answer checked against the
- * length of the question.
- *
- * Results are matched to calls by position, so a short answer would silently value each
- * asset with its neighbour's numbers rather than fail.
- */
-async function aggregate3(
-  requester: RpcRequester,
-  multicallAddress: string,
-  calls: readonly Call[],
-): Promise<readonly { success: boolean; returnData: Hex }[]> {
-  const raw = await requester({
-    method: 'eth_call',
-    params: [
-      {
-        to: multicallAddress,
-        data: encodeFunctionData({
-          abi: aggregate3Abi,
-          functionName: 'aggregate3',
-          args: [calls as readonly { target: Hex; allowFailure: boolean; callData: Hex }[]],
-        }),
-      },
-      'latest',
-    ],
-  });
-
-  const results = decodeFunctionResult({
-    abi: aggregate3Abi,
-    functionName: 'aggregate3',
-    data: assertHex(raw),
-  });
-
-  if (results.length !== calls.length) {
-    throw new ProviderError(
-      'invalid-response',
-      PROVIDER_ID,
-      `Multicall returned ${results.length} results for ${calls.length} calls`,
-    );
-  }
-
-  return results;
-}
-
-/**
- * A token's symbol, whichever of the two shapes it returns it in.
- *
- * A `bytes32` response is exactly 32 bytes; the shortest ABI-encoded string is 64.
- * Anything that decodes to nothing usable is null, which the UI renders as the address.
- */
-function decodeSymbol(data: Hex): string | null {
-  try {
-    const symbol =
-      (data.length - 2) / 2 === 32
-        ? hexToString(data, { size: 32 })
-        : decodeAbiParameters([{ type: 'string' }], data)[0];
-    return symbol.length === 0 ? null : symbol;
-  } catch {
-    return null;
-  }
-}
-
-function assertHex(value: unknown): Hex {
-  if (typeof value !== 'string' || !value.startsWith('0x')) {
-    throw new ProviderError('unavailable', PROVIDER_ID, 'eth_call did not return hex');
-  }
-  return value as Hex;
 }
