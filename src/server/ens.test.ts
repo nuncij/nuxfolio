@@ -67,11 +67,15 @@ function cache() {
 }
 
 describe('resolveEnsName', () => {
-  it('never follows a resolver-supplied URL (CCIP-read is off)', async () => {
-    // ERC-3668 offchain resolution asks the caller to fetch a URL chosen by
-    // whoever registered the name. Following it would let any visitor's URL make
-    // this server request arbitrary hosts from inside its own network, so the
-    // revert must surface as a plain failure and cost zero extra requests.
+  it('never follows a resolver-supplied URL, now that CCIP-read is back on', async () => {
+    // ERC-3668 offchain resolution asks the caller to fetch a URL chosen by whoever
+    // registered the name. Following it would let any visitor's URL make this server
+    // request arbitrary hosts from inside its own network.
+    //
+    // This test was written when the answer was to disable CCIP entirely. CCIP is on
+    // again, through `ccipGateway.ts`, and the assertion is unchanged and still passes —
+    // which is the point. What refuses the link-local address is now a guard rather than
+    // the absence of a feature, and the revert still costs exactly zero extra requests.
     // `OffchainLookup(address,string[],bytes,bytes4,bytes)`, selector 0x556f1830.
     const offchainLookupRevert =
       '0x556f1830' +
@@ -102,6 +106,7 @@ describe('resolveEnsName', () => {
     // Only the RPC call itself; no gateway fetch, and nothing aimed at the
     // link-local address the revert asked for.
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).not.toContain('169.254');
     expect(calls.every((call) => !call.url.includes('169.254.169.254'))).toBe(true);
   });
 

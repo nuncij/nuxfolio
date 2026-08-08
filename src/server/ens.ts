@@ -183,20 +183,28 @@ async function lookupEnsAddress(
   const client = createPublicClient({
     chain: mainnet,
     /**
-     * CCIP-read (ERC-3668 offchain resolution) is disabled deliberately.
+     * CCIP-read (ERC-3668 offchain resolution) is still disabled — but the reason has
+     * changed, and the new one is worth writing down.
      *
-     * With it enabled, viem follows a URL returned by the *resolver contract* —
-     * i.e. by whoever registered the name — using the global `fetch`, outside
-     * both the injected `fetchImpl` and the deadline above. Anyone can register
-     * an ENS name whose resolver points at `http://169.254.169.254/…`, so
-     * leaving it on would let a visitor's URL make this server issue arbitrary
-     * requests from inside its own network. That is server-side request forgery,
-     * and the fix is not a URL allow-list bolted onto a page render.
+     * Round 4 turned it off because viem follows a resolver-supplied URL with the global
+     * `fetch`, outside the injected client and outside the deadline: anyone could
+     * register a name pointing at `http://169.254.169.254/…` and make this server issue
+     * requests inside its own network.
      *
-     * The cost is that offchain-resolved names (gasless subdomains, some
-     * L2-hosted names) return "not found" rather than an address. Ordinary
-     * onchain `.eth` records — what the name pattern accepts — are unaffected.
-     * Supporting the rest needs a hardened fetch of its own; see docs/DEV_PLAN.md.
+     * `ccipGateway.ts` and `ssrfGuard.ts` now exist to make turning it on safe, and they
+     * are tested. What is not settled is the policy. The plan was an allow list of
+     * gateway hosts, on the strength of a measurement showing every offchain name
+     * resolving through `ccip-v2.ens.xyz`. **That measurement was of the wrong code
+     * path.** It called `UniversalResolver.resolve` directly, which returns ENS's batch
+     * gateway; viem's `getEnsAddress` uses `resolveWithGateways`, where the *name's own*
+     * gateway comes through instead — `api.coinbase.com` for `jesse.base.eth`.
+     *
+     * So the destination really is attacker-chosen in the path this code takes, an allow
+     * list would have to enumerate every gateway any name might ever use, and the choice
+     * left is between that and relying on the IP guard alone — which leaves a DNS
+     * rebinding residual. That is a security trade-off with an owner's decision in it,
+     * not a detail to settle in a commit. Until then this stays off, and offchain names
+     * keep returning "not found".
      */
     ccipRead: false,
     transport: fallback(
