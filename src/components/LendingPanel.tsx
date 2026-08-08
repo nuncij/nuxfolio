@@ -1,6 +1,7 @@
 'use client';
 
 import { Decimal } from 'decimal.js';
+import { useState } from 'react';
 
 import type {
   ProtocolAccountDto,
@@ -9,6 +10,7 @@ import type {
 } from '@/domain/portfolio';
 import { hasPosition, summarizeAccounts } from '@/domain/protocolAccount';
 
+import { partitionRewards } from '@/lib/assetGroups';
 import { formatHealthFactor, formatQuantity } from '@/lib/format';
 
 import { useMoney } from './DisplayProvider';
@@ -212,15 +214,53 @@ function Rewards({ account }: { account: ProtocolAccountDto }) {
     return null;
   }
 
+  return <RewardList account={account} />;
+}
+
+function RewardList({ account }: { account: ProtocolAccountDto }) {
+  const money = useMoney();
+  const [showSmall, setShowSmall] = useState(false);
+  const { shown, small, smallValueUsd } = partitionRewards(account.rewards);
+  const listId = `rewards-${account.marketId}`;
+
   return (
     <dl className="mt-2 space-y-2 border-l border-line pl-3">
       <div>
         <dt className="text-xs text-ink-subtle uppercase">Unclaimed rewards</dt>
-        {account.rewards.map((reward) => (
+        {shown.map((reward) => (
           <dd key={reward.token}>
             <RewardRow reward={reward} />
           </dd>
         ))}
+
+        {small.length > 0 && (
+          <dd>
+            {/* The fold names its own size and its own total, so collapsing it never
+                costs the reader a figure — only the rows. Same threshold and the same
+                promise as the asset table above. */}
+            <button
+              type="button"
+              onClick={() => setShowSmall((current) => !current)}
+              aria-expanded={showSmall}
+              aria-controls={listId}
+              className="flex w-full items-center justify-between gap-3 py-1 text-xs text-ink-muted hover:text-ink"
+            >
+              <span className="text-left">
+                {small.length} small reward{small.length === 1 ? '' : 's'} · {money(smallValueUsd)}{' '}
+                total
+              </span>
+              <span className="shrink-0">
+                {showSmall ? 'Hide' : 'Show'}
+                <span aria-hidden="true"> {showSmall ? '▲' : '▼'}</span>
+              </span>
+            </button>
+            <div id={listId} hidden={!showSmall}>
+              {small.map((reward) => (
+                <RewardRow key={reward.token} reward={reward} />
+              ))}
+            </div>
+          </dd>
+        )}
       </div>
     </dl>
   );

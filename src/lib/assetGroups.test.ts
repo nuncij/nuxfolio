@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupAssetsForDisplay, SMALL_BALANCE_THRESHOLD_USD } from './assetGroups';
+import {
+  SMALL_BALANCE_THRESHOLD_USD,
+  groupAssetsForDisplay,
+  partitionRewards,
+} from './assetGroups';
 
 function row(symbol: string, valueUsd: string | null, suspect = false) {
   return { symbol, valueUsd, suspect };
@@ -103,5 +107,38 @@ describe('groupAssetsForDisplay', () => {
 
     expect(groups.primary.map((asset) => asset.symbol)).toEqual(['C', 'A']);
     expect(groups.dust.map((asset) => asset.symbol)).toEqual(['D', 'B']);
+  });
+});
+
+describe('partitionRewards', () => {
+  it('folds a reward worth less than a dollar', () => {
+    const { shown, small } = partitionRewards([{ valueUsd: '104.51' }, { valueUsd: '0.0000035' }]);
+
+    expect(shown).toEqual([{ valueUsd: '104.51' }]);
+    expect(small).toEqual([{ valueUsd: '0.0000035' }]);
+  });
+
+  it('never folds a reward it could not price', () => {
+    // Four of Ethereum's five reward tokens are aTokens the market oracle has no feed
+    // for. Treating "no price" as "no value" would hide most of the feature behind a
+    // disclosure, and would be a claim about the amount rather than about the price.
+    const { shown, small } = partitionRewards([{ valueUsd: null }]);
+
+    expect(shown).toEqual([{ valueUsd: null }]);
+    expect(small).toEqual([]);
+  });
+
+  it('keeps exactly a dollar in view, like the asset table', () => {
+    expect(partitionRewards([{ valueUsd: '1' }]).shown).toHaveLength(1);
+  });
+
+  it('totals what it folded, so the count is never all a reader gets', () => {
+    const { smallValueUsd } = partitionRewards([{ valueUsd: '0.30' }, { valueUsd: '0.20' }]);
+
+    expect(smallValueUsd).toBe('0.50000000');
+  });
+
+  it('has nothing to total when nothing was folded', () => {
+    expect(partitionRewards([{ valueUsd: '5' }]).smallValueUsd).toBeNull();
   });
 });

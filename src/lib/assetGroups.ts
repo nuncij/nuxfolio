@@ -79,3 +79,30 @@ function sumPricedValues(assets: readonly DisplayAsset[]): string | null {
     .filter((value): value is string => value !== null);
   return values.length > 0 ? sumMoney(values) : null;
 }
+
+/**
+ * The same fold, applied to unclaimed rewards.
+ *
+ * Shares {@link SMALL_BALANCE_THRESHOLD_USD} rather than picking a second number: two
+ * thresholds on one page would be two different opinions about what counts as money.
+ *
+ * It also inherits the rule that matters most here — **an unpriced row is never dust**.
+ * On Ethereum four of the five reward tokens are aTokens the market oracle has no feed
+ * for, so hiding what cannot be priced would fold away most of the feature.
+ */
+export function partitionRewards<T extends { valueUsd: string | null }>(
+  rewards: readonly T[],
+): { readonly shown: T[]; readonly small: T[]; readonly smallValueUsd: string | null } {
+  const shown: T[] = [];
+  const small: T[] = [];
+
+  for (const reward of rewards) {
+    (isSmallBalance({ ...reward, suspect: false }) ? small : shown).push(reward);
+  }
+
+  return {
+    shown,
+    small,
+    smallValueUsd: sumPricedValues(small.map(({ valueUsd }) => ({ valueUsd, suspect: false }))),
+  };
+}
