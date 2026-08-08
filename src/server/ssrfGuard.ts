@@ -13,9 +13,12 @@
  * boundary; keeping it a function of a string means it can be tested exhaustively rather
  * than observed occasionally.
  *
- * **It denies by default.** Every range below is listed because it is *not* public.
- * Anything unparseable is denied too: a guard that cannot understand an address cannot
- * vouch for it.
+ * **It denies by default, in both families.** IPv4 works from a table of ranges that are
+ * not public; IPv6 allows only global unicast and carves out what is not reachable
+ * inside it. The IPv6 half originally denied a list and allowed the rest, and a review
+ * found six addresses that walked through — `fec0::1`, `100:0:0:1::1`, `::127.0.0.1` and
+ * others — while this very comment claimed otherwise. Anything unparseable is denied
+ * too: a guard that cannot understand an address cannot vouch for it.
  */
 
 /**
@@ -37,6 +40,7 @@ const IPV4_DENIED: readonly (readonly [number, number])[] = [
   [ipv4ToInt('192.0.0.0'), ipv4ToInt('192.0.0.255')], // IETF protocol assignments
   [ipv4ToInt('192.0.2.0'), ipv4ToInt('192.0.2.255')], // documentation
   [ipv4ToInt('192.168.0.0'), ipv4ToInt('192.168.255.255')], // private
+  [ipv4ToInt('192.88.99.0'), ipv4ToInt('192.88.99.255')], // 6to4 relay anycast, deprecated
   [ipv4ToInt('198.18.0.0'), ipv4ToInt('198.19.255.255')], // benchmarking
   [ipv4ToInt('198.51.100.0'), ipv4ToInt('198.51.100.255')], // documentation
   [ipv4ToInt('203.0.113.0'), ipv4ToInt('203.0.113.255')], // documentation
@@ -83,31 +87,44 @@ function checkIpv4(value: number, original: string): AddressVerdict {
   return { safe: true };
 }
 
+/**
+ * IPv6, allowed only inside global unicast.
+ *
+ * This was written the other way round — deny a list, allow the rest — and Codex's
+ * review found six addresses that walked through it, including `fec0::1` and
+ * `100:0:0:1::1`. Worse, the module's own comment claimed it denied by default while
+ * this function did the opposite, which is how a guard ends up trusted for something it
+ * does not do.
+ *
+ * Global unicast is `2000::/3`. Everything outside it is documentation, reserved,
+ * link-local, unique-local, multicast or a transition prefix, and none of those is a
+ * gateway. Inside it, a few carve-outs are not globally reachable either.
+ */
 function checkIpv6(groups: readonly number[], original: string): AddressVerdict {
-  const denied =
-    isUnspecified(groups) ||
-    isLoopback(groups) ||
-    // fc00::/7 — unique local.
-    (groups[0]! & 0xfe00) === 0xfc00 ||
-    // fe80::/10 — link-local.
-    (groups[0]! & 0xffc0) === 0xfe80 ||
-    // ff00::/8 — multicast.
-    (groups[0]! & 0xff00) === 0xff00 ||
-    // 100::/64 — discard-only.
-    (groups[0] === 0x0100 && groups.slice(1, 4).every((group) => group === 0)) ||
-    // 2001:db8::/32 — documentation.
-    (groups[0] === 0x2001 && groups[1] === 0x0db8) ||
-    // 2002::/16 — 6to4 encodes an IPv4 address in the next 32 bits, which may be private.
-    groups[0] === 0x2002;
+  const deny = (why: string): AddressVerdict => ({ safe: false, reason: `${original} is ${why}` });
 
-  return denied
-    ? { safe: false, reason: `${original} is in a reserved or private IPv6 range` }
-    : { safe: true };
+  // `::a.b.c.d` — IPv4-compatible, deprecated, and the form that reached the metadata
+  // address past the old rules. Never legitimate, so refused rather than unwrapped.
+  if (groups.slice(0, 6).every((group) => group === 0)) {
+    return deny('an IPv4-compatible IPv6 address, which is deprecated');
+  }
+
+  // 2000::/3 is the only globally routable range. Outside it, deny without a list.
+  if ((groups[0]! & 0xe000) !== 0x2000) {
+    return deny('outside IPv6 global unicast (2000::/3)');
+  }
+
+  const carveOuts: readonly (readonly [string, boolean])[] = [
+    ['2001::/32, Teredo', groups[0] === 0x2001 && groups[1] === 0x0000],
+    ['2001:2::/48, benchmarking', groups[0] === 0x2001 && groups[1] === 0x0002],
+    ['2001:db8::/32, documentation', groups[0] === 0x2001 && groups[1] === 0x0db8],
+    ['2002::/16, 6to4', groups[0] === 0x2002],
+    ['3fff::/20, documentation', (groups[0]! & 0xfff0) === 0x3ff0],
+  ];
+  const hit = carveOuts.find(([, matches]) => matches);
+
+  return hit === undefined ? { safe: true } : deny(`in ${hit[0]}, which is not globally reachable`);
 }
-
-const isUnspecified = (groups: readonly number[]) => groups.every((group) => group === 0);
-const isLoopback = (groups: readonly number[]) =>
-  groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
 
 /**
  * The IPv4 address inside an IPv4-mapped (`::ffff:a.b.c.d`) or IPv4-translated
@@ -122,8 +139,11 @@ function embeddedIpv4(groups: readonly number[]): number | null {
     return mapped;
   }
 
-  // 64:ff9b::/96 and 64:ff9b:1::/48, the NAT64 well-known prefixes.
-  if (groups[0] === 0x0064 && groups[1] === 0xff9b) {
+  // 64:ff9b::/96, the *well-known* NAT64 prefix, where the last 32 bits are the IPv4
+  // address being translated. `64:ff9b:1::/48` is the local-use prefix and is a
+  // different thing: it is denied outright by `checkIpv6` rather than unwrapped, because
+  // its embedded address says nothing about where the translator sends the packet.
+  if (groups[0] === 0x0064 && groups[1] === 0xff9b && groups.slice(2, 6).every((g) => g === 0)) {
     return ((groups[6]! << 16) | groups[7]!) >>> 0;
   }
   return null;

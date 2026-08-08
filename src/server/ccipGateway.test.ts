@@ -83,6 +83,29 @@ describe('what it refuses to fetch', () => {
     expect(dependencies.fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('refuses a non-standard port on an allowed host', async () => {
+    // The allow list names a host, not an origin. Without a port check a name could
+    // probe whatever else listens on an approved host.
+    const dependencies = deps();
+
+    await expect(
+      ask(['https://ccip-v2.ens.xyz:4443/{sender}/{data}'], dependencies),
+    ).rejects.toThrow();
+
+    expect(dependencies.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('tries at most three of the URLs a revert offers', async () => {
+    // The list is attacker-supplied and unbounded; each entry costs a lookup and a
+    // timeout, so an unlimited loop is an availability attack on a 3.7 GB box.
+    const failing = vi.fn(async () => new Response('later', { status: 503 }));
+    const urls = Array.from({ length: 50 }, () => GATEWAY);
+
+    await expect(ask(urls, deps({ fetchImpl: failing as never }))).rejects.toThrow();
+
+    expect(failing.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
   it('refuses an allowed host that resolves to a private address', async () => {
     // Defence in depth: the host is on the list, and DNS says something it should not.
     const dependencies = deps({ resolveHost: async () => ['10.0.0.5'] });
@@ -192,5 +215,31 @@ describe('how it talks to a gateway it accepts', () => {
     const huge = vi.fn(async () => Response.json({ data: `0x${'ab'.repeat(200_000)}` }));
 
     await expect(ask([GATEWAY], deps({ fetchImpl: huge as never }))).rejects.toThrow(/too large/);
+  });
+
+  it('stops reading at the cap rather than buffering past it', async () => {
+    // `response.text()` buffers everything before any size check, so a gateway streaming
+    // without end could exhaust the box before the limit was consulted. This asserts the
+    // stream is abandoned instead: the producer is asked for far more than the cap and
+    // must not be drained.
+    let chunksProduced = 0;
+    const endless = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              chunksProduced += 1;
+              controller.enqueue(new Uint8Array(64 * 1024));
+            },
+          }),
+        ),
+    );
+
+    await expect(ask([GATEWAY], deps({ fetchImpl: endless as never }))).rejects.toThrow(
+      /too large/,
+    );
+
+    // 256 KiB cap over 64 KiB chunks: a handful, not an unbounded number.
+    expect(chunksProduced).toBeLessThan(16);
   });
 });

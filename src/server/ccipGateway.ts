@@ -49,6 +49,15 @@ export const ALLOWED_GATEWAY_HOSTS: readonly string[] = ['ccip-v2.ens.xyz'];
 /** Past this the gateway is answering with something that is not a CCIP response. */
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
+/**
+ * How many of the URLs a revert offers are worth trying.
+ *
+ * The list is attacker-supplied and unbounded, and each entry costs a DNS lookup and a
+ * timeout. Three is more than any real resolver returns and turns "one lookup can occupy
+ * the server for `urls.length × timeout`" into a fixed ceiling.
+ */
+const MAX_GATEWAYS_TRIED = 3;
+
 export type CcipRequest = {
   readonly sender: string;
   readonly data: string;
@@ -79,8 +88,16 @@ export async function ccipRequest(
   const refuse = dependencies.onRefused ?? (() => {});
 
   let lastError: Error | null = null;
+  // One budget for the whole call, not one per URL: three timeouts in series is three
+  // times as long as the caller agreed to wait.
+  const startedAt = Date.now();
+  const remaining = () => dependencies.timeoutMs - (Date.now() - startedAt);
 
-  for (const template of request.urls) {
+  for (const template of request.urls.slice(0, MAX_GATEWAYS_TRIED)) {
+    if (remaining() <= 0) {
+      refuse('the gateway budget was spent before this URL could be tried');
+      break;
+    }
     const url = buildUrl(template, request);
     if (url === null) {
       refuse('gateway URL could not be parsed');
@@ -93,6 +110,12 @@ export async function ccipRequest(
     }
     if (url.username !== '' || url.password !== '') {
       refuse('gateway URL carries credentials');
+      continue;
+    }
+    // The allow list names a host, not an origin. Without this, a name could probe
+    // whatever else happens to listen on an approved host.
+    if (url.port !== '' && url.port !== '443') {
+      refuse(`gateway URL uses a non-standard port (${url.port})`);
       continue;
     }
     if (!allowed.has(url.hostname.toLowerCase())) {
@@ -116,7 +139,7 @@ export async function ccipRequest(
     }
 
     try {
-      return await ask(url, template, request, dependencies);
+      return await ask(url, template, request, dependencies, remaining());
     } catch (error) {
       // ERC-3668: a 4xx is the gateway saying this request is wrong, so trying another
       // is pointless. A 5xx is the gateway being unwell, and the next one may not be.
@@ -165,9 +188,10 @@ async function ask(
   template: string,
   request: CcipRequest,
   dependencies: CcipDependencies,
+  timeoutMs: number,
 ): Promise<`0x${string}`> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), dependencies.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await dependencies.fetchImpl(url, {
@@ -203,13 +227,41 @@ async function ask(
   }
 }
 
-/** The body, refusing to buffer more than a CCIP answer could plausibly be. */
+/**
+ * The body, stopping at the cap rather than after it.
+ *
+ * `response.text()` buffers everything first, so a gateway streaming gigabytes could
+ * exhaust a 3.7 GB box before the size was ever checked. Reading the stream and counting
+ * as it arrives means the limit is enforced where it is useful.
+ */
 async function readCapped(response: Response): Promise<string> {
-  const text = await response.text();
-  if (text.length > MAX_RESPONSE_BYTES) {
-    throw new GatewayError('gateway response is too large to be a CCIP answer', false);
+  const body = response.body;
+  if (body === null) {
+    return '';
   }
-  return text;
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = '';
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      size += value.byteLength;
+      if (size > MAX_RESPONSE_BYTES) {
+        throw new GatewayError('gateway response is too large to be a CCIP answer', false);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+
+  return text + decoder.decode();
 }
 
 /** Every address a hostname resolves to, because one bad answer among several is enough. */

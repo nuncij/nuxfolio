@@ -131,3 +131,56 @@ describe('the verdict carries a reason', () => {
     expect(verdict.safe === false && verdict.reason).toMatch(/reserved or private IPv4/);
   });
 });
+
+describe('the addresses an independent review found walking through', () => {
+  /**
+   * Every one of these was `safe: true` when the IPv6 half denied a list and allowed the
+   * rest — while the module's own comment claimed it denied by default. They are pinned
+   * individually because the fix was to invert the rule, and a future edit that reverts
+   * to a deny-list would pass a test that only checked a couple of them.
+   */
+  it('refuses local-use NAT64, which is not the well-known prefix', () => {
+    // 64:ff9b:1::/48 embeds an IPv4 address that says nothing about where the local
+    // translator actually sends the packet, so unwrapping it was the mistake.
+    expect(safe('64:ff9b:1::8.8.8.8')).toBe(false);
+  });
+
+  it('refuses deprecated site-local', () => {
+    expect(safe('fec0::1')).toBe(false);
+  });
+
+  it('refuses the discard prefix beyond the first four groups', () => {
+    // The old check required groups 1-3 to be zero, so this walked past it.
+    expect(safe('100:0:0:1::1')).toBe(false);
+  });
+
+  it('refuses reserved space outside global unicast', () => {
+    expect(safe('5f00::1')).toBe(false);
+    expect(safe('4000::1')).toBe(false);
+    expect(safe('1000::1')).toBe(false);
+  });
+
+  it('refuses benchmarking, documentation and Teredo inside global unicast', () => {
+    expect(safe('2001:2::1')).toBe(false);
+    expect(safe('3fff::1')).toBe(false);
+    expect(safe('2001:0:c000:201::1')).toBe(false);
+  });
+
+  it('refuses the IPv4-compatible form that reached the metadata address', () => {
+    // `::a.b.c.d`. Deprecated, never legitimate, and the clearest bypass of the lot.
+    expect(safe('::169.254.169.254')).toBe(false);
+    expect(safe('::127.0.0.1')).toBe(false);
+    expect(safe('::8.8.8.8')).toBe(false);
+  });
+
+  it('refuses the 6to4 relay anycast IPv4 range', () => {
+    expect(safe('192.88.99.2')).toBe(false);
+  });
+
+  it('still allows a genuine global-unicast address', () => {
+    // The inversion must not have closed the door on everything.
+    expect(safe('2606:4700:4700::1111')).toBe(true);
+    expect(safe('2a00:1450:4001::200e')).toBe(true);
+    expect(safe('64:ff9b::8.8.8.8')).toBe(true);
+  });
+});
