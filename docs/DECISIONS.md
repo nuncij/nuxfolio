@@ -1825,6 +1825,29 @@ the failure this product exists to avoid. The panel says which way it goes.
   shut-down filter and the sweep _are_ verified live; the decode of a non-zero balance is
   not. That is the weakest link in this feature and it is recorded as such.
 
+**Addendum, same day — this shipped broken on Arbitrum.** The `Booster` returns a
+**different struct per deployment**, and the first version decoded both as Ethereum's:
+
+|                 | Ethereum, 6 words                                    | Arbitrum sidechain, 5 words                  |
+| --------------- | ---------------------------------------------------- | -------------------------------------------- |
+| Layout          | `lptoken, token, gauge, crvRewards, stash, shutdown` | `lptoken, gauge, rewards, shutdown, factory` |
+| Reward contract | index 3                                              | **index 2**                                  |
+| `shutdown`      | index 5                                              | **index 3**                                  |
+
+Every Arbitrum pool threw, so the panel said "Convex could not be read" — correct
+behaviour reporting a real failure, and the only reason the bug was visible at all. Had
+the widths matched, Ethereum's offsets would have swept each pool's **gauge** address:
+real contracts, wrong ones, and a confidently empty answer.
+
+The layout is now chosen by the width of the response rather than configured per chain —
+both structs are entirely fixed-size, so the length is exact and says which one it is. An
+unrecognised width skips that pool rather than guessing an offset. Both layouts are
+pinned by tests against words captured from the live contracts.
+
+This is the third time in milestone 5 that a contract interface differed from the one
+recalled — after Aave's 3.2 struct and an invented selector — and the second time the
+same lesson landed: **the shape is per deployment, not per protocol.**
+
 ## ADR-031 — No `PositionProvider` interface; one shared status instead
 
 **Context.** Milestone 5 opened with an interface: per-protocol adapters behind a common
