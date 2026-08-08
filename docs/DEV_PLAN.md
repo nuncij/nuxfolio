@@ -145,7 +145,7 @@ go-public checklist names Nuxfolio as a deliberate exception.
 | ~~No remote, no deployment (CI file exists, inactive)~~                         | ✅ M2-6/7 — on GitHub, live on the owner's VPS (ADR-018)                       |
 | ~~Protocol accounting: debt and liquidation risk not read~~                     | ✅ M5-1, 2026-08-07 — Aave v3 borrower state (ADR-026)                         |
 | ~~Which assets a market's totals are made of~~                                  | ✅ M5-2, 2026-08-07 — rows priced by the market's own oracle (ADR-027)         |
-| **The page never says which protocols were _not_ checked**                      | M5-3 — an honesty rule this project wrote for itself and has not yet met       |
+| ~~The page never says which protocols were _not_ checked~~                      | ✅ M5-3, 2026-08-08 — stated in the panel and in the caveats, on every wallet  |
 | Unclaimed Aave rewards are not read                                             | M5-4 — the last piece of the Aave adapter                                      |
 | Other lending protocols, staking, LP composition                                | M5-6 — Aave v3 is the only protocol read                                       |
 | Collateral is inconsistently visible in the asset total (53 v3 receipts listed) | ADR-026 — why no net-of-debt figure exists, and why M5-2 did not change that   |
@@ -255,16 +255,16 @@ already visible; this milestone adds what `balanceOf` cannot see.
 > the remaining items move down. `PositionProvider` survives as M5-5, deferred rather than
 > skipped; the reason is in its row.
 
-| #    | Item                                                                                                                                                                                                                                                                                       | Effort | Notes                                                                       |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------- |
-| M5-1 | ✅ **Aave v3 account totals** — collateral, debt and health factor per market, seven markets across five chains, read from `Pool.getUserAccountData` and reported in Aave's own currency rather than re-priced.                                                                            | —      | Shipped 2026-08-07. ADR-026.                                                |
-| M5-2 | ✅ **Aave v3 per-token detail** — which assets those totals are made of, priced by the market's own oracle so the rows sum to the totals exactly.                                                                                                                                          | —      | Shipped 2026-08-07. ADR-027.                                                |
-| M5-3 | **Say which protocols were _not_ checked.** A wallet can hold Compound, Morpho or Spark positions that Nuxfolio cannot see, and nothing on the page says so. `M5_PLAN.md` §6 makes this a rule and the milestone that wrote it did not meet it — which is why it is next rather than last. | S      | The one item here that fixes an overstatement rather than adding a feature. |
-| M5-4 | **Unclaimed Aave rewards.** `RewardsController.getAllUserRewards`, which is what the original Aave row meant by "the full shape". Finishes the adapter.                                                                                                                                    | M      | The benchmark wallet's ~$0.35 is the exit criterion's own example.          |
-| M5-5 | **`PositionProvider` interface.** Normalised `Position` objects across protocols, each adapter with its own coverage semantics. **Deliberately deferred, not skipped**: an abstraction with one implementation is the kind this codebase rejects. Build it _with_ the second adapter.      | M      | Was M5-1 and was to come first; inverted on purpose.                        |
-| M5-6 | **Lido, Curve/Convex adapters.** Staking and LP composition + unclaimed rewards. Choose by TVL × what benchmark wallets actually hold.                                                                                                                                                     | L each | The second adapter is what proves M5-5's shape.                             |
-| M5-7 | **Decide on an indexer shortcut.** Zerion/Zapper-style position APIs could cover the long tail in one integration but are paid and re-introduce single-vendor coupling. Evaluate _after_ three first-party adapters exist, so the abstraction is proven before a vendor hides behind it.   | —      | Decision point, not a work item.                                            |
-| M5-8 | **Debt-aware totals.** Net worth = assets − debt, with both shown. Still blocked by the thing ADR-026 found and ADR-027 did not change: the asset side is priced by DefiLlama and the debt side by Aave, and a receipt token may or may not be on a bundled list.                          | M      | Needs a decision recorded, not just code.                                   |
+| #    | Item                                                                                                                                                                                                                                                                                     | Effort | Notes                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
+| M5-1 | ✅ **Aave v3 account totals** — collateral, debt and health factor per market, seven markets across five chains, read from `Pool.getUserAccountData` and reported in Aave's own currency rather than re-priced.                                                                          | —      | Shipped 2026-08-07. ADR-026.                                       |
+| M5-2 | ✅ **Aave v3 per-token detail** — which assets those totals are made of, priced by the market's own oracle so the rows sum to the totals exactly.                                                                                                                                        | —      | Shipped 2026-08-07. ADR-027.                                       |
+| M5-3 | ✅ **Say which protocols were _not_ checked.** The panel names Aave v3 as its whole scope, and a caveat present on every wallet says so again — including the wallet with no lending panel at all, which is the one that needed it.                                                      | —      | Shipped 2026-08-08.                                                |
+| M5-4 | **Unclaimed Aave rewards.** `RewardsController.getAllUserRewards`, which is what the original Aave row meant by "the full shape". Finishes the adapter.                                                                                                                                  | M      | The benchmark wallet's ~$0.35 is the exit criterion's own example. |
+| M5-5 | **`PositionProvider` interface.** Normalised `Position` objects across protocols, each adapter with its own coverage semantics. **Deliberately deferred, not skipped**: an abstraction with one implementation is the kind this codebase rejects. Build it _with_ the second adapter.    | M      | Was M5-1 and was to come first; inverted on purpose.               |
+| M5-6 | **Lido, Curve/Convex adapters.** Staking and LP composition + unclaimed rewards. Choose by TVL × what benchmark wallets actually hold.                                                                                                                                                   | L each | The second adapter is what proves M5-5's shape.                    |
+| M5-7 | **Decide on an indexer shortcut.** Zerion/Zapper-style position APIs could cover the long tail in one integration but are paid and re-introduce single-vendor coupling. Evaluate _after_ three first-party adapters exist, so the abstraction is proven before a vendor hides behind it. | —      | Decision point, not a work item.                                   |
+| M5-8 | **Debt-aware totals.** Net worth = assets − debt, with both shown. Still blocked by the thing ADR-026 found and ADR-027 did not change: the asset side is priced by DefiLlama and the debt side by Aave, and a receipt token may or may not be on a bundled list.                        | M      | Needs a decision recorded, not just code.                          |
 
 **Exit criteria, and where they stand after M5-2:**
 
@@ -274,11 +274,10 @@ already visible; this milestone adds what `balanceOf` cannot see.
 | …and which assets those figures are made of                   | ✅ M5-2, rows reconciling to the totals to the base unit |
 | The benchmark wallet shows its ~$0.35 unclaimed rewards       | ❌ no rewards read exists — M5-4                         |
 | …and its Convex positions                                     | ❌ Aave v3 is the only protocol read — M5-6              |
-| Every protocol view states which protocols were _not_ checked | ❌ nothing on the page says this — M5-3                  |
+| Every protocol view states which protocols were _not_ checked | ✅ M5-3, in the panel and in the always-present caveat   |
 
-Two of the five unmet criteria are features. The third is not: the page currently
-implies a completeness it does not have, which makes M5-3 the first thing to do rather
-than the easiest thing left.
+The two still unmet are features. The third was not — the page implied a completeness it
+did not have — which is why it went first rather than last.
 
 ### Milestone 6 — Beyond EVM (kickoff Phase 4)
 
@@ -361,10 +360,13 @@ across seven markets on five chains (ADR-026), and then which assets each market
 are made of, priced by that market's own oracle so the rows reconcile with the totals to
 the base unit (ADR-027).
 
-That is the Aave v3 adapter, not milestone 5: six of its eight rows are still open. One
-of them — M5-3, saying which protocols were **not** checked — is a rule `M5_PLAN.md` §6
-set for this milestone and the milestone did not meet. It is small, and until it is done
-the lending panel reads as more complete than it is.
+**M5-3 followed on 2026-08-08**, closing the one open item that was a defect rather than
+a feature: the page now says Aave v3 is the only protocol it reads — in the lending
+panel, and again in the caveats, which show even on a wallet that has no panel. That was
+`M5_PLAN.md` §6's rule, which M5-1 and M5-2 both shipped without meeting.
+
+That is the Aave v3 adapter plus its coverage statement, not milestone 5: five of its
+eight rows are still open, and two of those are blocked on decisions rather than effort.
 
 What remains optional:
 

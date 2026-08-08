@@ -382,7 +382,7 @@ function PartialViewNotice({ progress }: { progress: AggregateProgress }) {
  * total the lists cover; everything chain-specific keeps its network prefix, and
  * nothing is dropped.
  */
-function collectAggregateWarnings(aggregate: AggregatePortfolio): PortfolioWarning[] {
+export function collectAggregateWarnings(aggregate: AggregatePortfolio): PortfolioWarning[] {
   const coverage = aggregate.chains.filter((chain) =>
     chain.warnings.some((warning) => warning.code === COVERAGE_CODE),
   );
@@ -400,9 +400,21 @@ function collectAggregateWarnings(aggregate: AggregatePortfolio): PortfolioWarni
     });
   }
 
+  const globalsSeen = new Set<string>();
+
   for (const chain of aggregate.chains) {
     for (const warning of chain.warnings) {
       if (warning.code === COVERAGE_CODE) {
+        continue;
+      }
+      // A statement about the product rather than about this network's data. Every
+      // chain carries an identical copy, so namespacing it by chain the way the rest
+      // are would print the same sentence five times.
+      if (GLOBAL_CODES.has(warning.code)) {
+        if (!globalsSeen.has(warning.code)) {
+          globalsSeen.add(warning.code);
+          combined.push(warning);
+        }
         continue;
       }
       combined.push({
@@ -416,6 +428,15 @@ function collectAggregateWarnings(aggregate: AggregatePortfolio): PortfolioWarni
 
   return combined;
 }
+
+/**
+ * Warnings that describe the product, not a network.
+ *
+ * Distinct from {@link SELF_DESCRIBING_CODES}, which only drops the chain-name prefix:
+ * those still appear once per network because each is about that network. These are
+ * the same fact repeated, so exactly one survives.
+ */
+const GLOBAL_CODES: ReadonlySet<string> = new Set(['protocols.coverage']);
 
 const COVERAGE_CODE = 'coverage.token-list';
 

@@ -604,3 +604,34 @@ describe('summarizePortfolio', () => {
     expect(summary.countedPricedAssetCount).toBe(0);
   });
 });
+
+describe('protocol coverage', () => {
+  const CODE = 'protocols.coverage';
+
+  it('says which protocol is read even when the wallet has nothing at all', () => {
+    // The wallet that most needs this sentence is the one with a Compound position and
+    // no Aave position: it gets no lending panel, so without the note there is nothing
+    // on the page distinguishing "not checked" from "nothing there".
+    const portfolio = buildPortfolio(buildInput({ balances: [], warnings: [] }));
+
+    expect(portfolio.warnings.map((warning) => warning.code)).toContain(CODE);
+  });
+
+  it('is present on a portfolio that has no other complaint to make', () => {
+    const portfolio = buildPortfolio(buildInput({ coverage: 'complete', warnings: [] }));
+
+    expect(portfolio.warnings.filter((warning) => warning.code === CODE)).toHaveLength(1);
+  });
+
+  it('says what is still counted, not only what is missing', () => {
+    // Half a truth here would be its own overstatement in the other direction: receipt
+    // tokens for other protocols *are* valued, and a flat "other protocols are not
+    // shown" would have a reader discount holdings the total already includes.
+    const message =
+      buildPortfolio(buildInput({})).warnings.find((warning) => warning.code === CODE)?.message ??
+      '';
+
+    expect(message).toMatch(/Aave v3/);
+    expect(message).toMatch(/receipt token/);
+  });
+});

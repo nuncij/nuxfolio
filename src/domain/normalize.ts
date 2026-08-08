@@ -139,6 +139,7 @@ export function buildPortfolio(input: BuildPortfolioInput): Portfolio {
       droppedCount,
       maxAssets: input.maxAssets,
     }),
+    PROTOCOL_COVERAGE_WARNING,
   ]);
 
   return {
@@ -409,6 +410,29 @@ function deriveDisputeWarnings(
     },
   ];
 }
+
+/**
+ * The one caveat that is always true.
+ *
+ * Every other warning here reports something that went wrong *this time*. This one
+ * reports a permanent boundary of the product, and it is unconditional for the reason
+ * the whole panel exists: a wallet with a Compound loan and no Aave position sees no
+ * lending panel at all, so silence about coverage is indistinguishable from a confirmed
+ * absence. `M5_PLAN.md` §6 made this a rule for milestone 5 — "reading Aave and not
+ * Compound means a wallet can have positions Nuxfolio cannot see" — and M5-1 and M5-2
+ * both shipped without meeting it.
+ *
+ * The second sentence matters as much as the first. Receipt tokens *are* counted, so a
+ * flat "other protocols are not shown" would understate what the page does, in a product
+ * whose whole claim is that it neither overstates nor understates.
+ */
+const PROTOCOL_COVERAGE_WARNING: PortfolioWarning = {
+  code: 'protocols.coverage',
+  message:
+    'Aave v3 is the only protocol whose own accounting is read. A position held by ' +
+    'another protocol — a Compound loan, a Convex stake — is not shown, though a ' +
+    'receipt token for one sitting in the wallet is still counted as a token.',
+};
 
 function dedupeByCode(warnings: readonly PortfolioWarning[]): PortfolioWarning[] {
   const seen = new Set<string>();

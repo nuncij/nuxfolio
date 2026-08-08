@@ -319,10 +319,11 @@ callers share one bucket with a higher ceiling. See ADR-008.
    curated subset of Unicode rather than all of it.
 5. No persistence and no history — every load is a live read.
 6. Protocol accounting is read for **Aave v3 only** — no other lending protocol, no LP
-   composition, no unclaimed rewards, not even Aave's own. Worse than the gap itself:
-   **the page does not say so.** A wallet with a Compound or Morpho position sees a
-   lending panel that looks complete and is not. That is a rule this project set for
-   itself and has not yet met; it is the next thing to fix, tracked as M5-3.
+   composition, and no unclaimed rewards, not even Aave's own (M5-4). The page says so
+   rather than leaving it to be discovered: the lending panel's caption leads with "Aave
+   v3 only", and a caveat states it on every wallet, including one with no lending panel
+   at all — which is the wallet that cannot otherwise tell "not checked" from "nothing
+   there".
 7. No net-of-debt figure is computed anywhere — and the reason first written here was
    itself wrong. It said Aave's receipt tokens are absent from the bundled lists;
    measuring found 53 of them present. The real obstacle is the **inconsistency**:

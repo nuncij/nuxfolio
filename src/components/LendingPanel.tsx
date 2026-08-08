@@ -45,18 +45,27 @@ export function LendingPanel({ accounts }: { accounts: readonly ProtocolAccountD
         <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
           Lending markets
         </h2>
-        {/* The source is named, not implied. These are Aave's numbers, computed by
-            Aave's oracle, which is why they reconcile with Aave's own interface and
-            why they are not mixed into a total priced by someone else.
+        {/* Three clauses, and the first is the one M5-3 added. Naming Aave as the
+            *source* of these figures is attribution; saying Aave is the *only*
+            protocol read is coverage, and only the second stops a heading that says
+            "Lending markets" from implying it lists all of them. The caveat panel
+            carries the same fact, but it is collapsed by default — a statement a
+            reader has to open a disclosure to find is not one the panel above it can
+            lean on.
 
-            The second clause took a real screenshot to get right. "Not included in
-            the total above" was true of these *figures* — nothing here is summed into
-            the total — and false about the money: 53 Aave v3 receipt tokens are on the
-            bundled lists, so a wallet's collateral is often already counted above
-            under a name like "Aave v3 WETH". The old wording invited exactly the
-            addition it was trying to prevent. */}
+            The second clause: these are Aave's own numbers, computed by Aave's oracle,
+            which is why they reconcile with Aave's interface and why they are not
+            mixed into a total priced by someone else.
+
+            The third took a real screenshot to get right. "Not included in the total
+            above" was true of these *figures* — nothing here is summed into the total —
+            and false about the money: 53 Aave v3 receipt tokens are on the bundled
+            lists, so a wallet's collateral is often already counted above under a name
+            like "Aave v3 WETH". The old wording invited exactly the addition it was
+            trying to prevent. */}
         <p className="text-xs text-ink-subtle">
-          Reported by Aave · collateral may also appear above as a receipt token
+          Aave v3 only · figures are Aave&rsquo;s own · collateral may also appear above as a
+          receipt token
         </p>
       </div>
 

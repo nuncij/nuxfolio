@@ -343,13 +343,22 @@ wallet actually uses cost any vertical space, and each brings at most a handful 
 seven markets — Optimism and BNB — report totals and a health factor but no breakdown,
 and say so in words rather than showing an empty list.
 
-**§6's coverage rule is not met, and that is a defect rather than a scope choice.** The
-rule reads: "Reading Aave and not Compound means a wallet can have positions Nuxfolio
+**§6's coverage rule went unmet by both halves, and was closed on 2026-08-08 as M5-3.**
+The rule reads: "Reading Aave and not Compound means a wallet can have positions Nuxfolio
 cannot see. The response says which protocols were checked, in the same spirit as
-`coverage: 'token-list'`." Nothing on the page says it. Naming Aave as the _source_ of
-these figures is a different claim from telling a reader that Compound, Morpho and Spark
-were never looked at — the first is attribution, the second is coverage, and only the
-second stops the panel reading as complete. Tracked as M5-3, and it is next.
+`coverage: 'token-list'`." Naming Aave as the _source_ of these figures is a different
+claim from telling a reader that Compound and Morpho were never looked at — the first is
+attribution, the second is coverage, and only the second stops the panel reading as
+complete.
+
+It is said in two places, and both are needed. The panel's caption leads with "Aave v3
+only", because the caveat panel is collapsed by default and a fact a reader must open a
+disclosure to find cannot carry a claim made above it. The caveat itself is
+unconditional, because the wallet that most needs the sentence — a Compound borrower with
+no Aave position — gets no lending panel at all, and silence there is indistinguishable
+from a confirmed absence. §6's instruction to put it on the response is met by the
+warning travelling in `warnings`, with no new field: what protocols are read varies by
+neither wallet nor chain, so a field stating it would state a constant.
 
 **Unclaimed rewards were in scope and are absent.** §5's table put rewards in the Aave
 adapter's "full shape". No `RewardsController` read exists. Tracked as M5-4.
