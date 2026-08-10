@@ -3,7 +3,7 @@
   "source": "https://tokens.coingecko.com/optimistic-ethereum/all.json",
   "sourceName": "CoinGecko",
   "sourceVersion": "93.1.0",
-  "generatedAt": "2026-08-04T19:35:03.002Z",
+  "generatedAt": "2026-08-10T04:43:17.397Z",
   "chainId": 10,
   "tokens": [
     {"address":"0x135c78D7F52Aab6e9f17BcF4A9e8627AA233D050","name":"BOO","symbol":"$BOO","decimals":18},
