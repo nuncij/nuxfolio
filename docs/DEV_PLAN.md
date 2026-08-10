@@ -132,7 +132,7 @@ go-public checklist names Nuxfolio as a deliberate exception.
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | ~~Junk tokens inflating a total~~                                               | ✅ addressed by M2-1 (identity heuristics + accounting)                                      |
 | On-list junk airdrops still count toward the total (the list is the whitelist)  | accepted, ADR-014                                                                            |
-| ENS names outside `.eth` (`.cb.id`, `.box`) are rejected by the name pattern    | untouched by ADR-032 — a separate limitation                                                 |
+| ~~ENS names outside `.eth` are rejected by the name pattern~~                   | ✅ 2026-08-10 — any ASCII multi-label name; `nick.box` resolves                              |
 | Spoof detection covers a curated subset of Unicode confusables, not all of them | accepted, ADR-014 addendum — narrowed 2026-08-04, not closed                                 |
 | ~~The weekly list refresh reaches `main`, not the running app~~                 | ✅ ADR-018 addendum — the target pulls each build from CI on a 15-minute timer               |
 | ~~Offchain/CCIP-resolved ENS names return not-found~~                           | ✅ 2026-08-08 — on, behind a measured gateway allow list (ADR-032)                           |
