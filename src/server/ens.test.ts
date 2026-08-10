@@ -236,11 +236,13 @@ describe('resolveEnsName', () => {
   });
 
   it('refuses a name outside the recognised pattern without any lookup', async () => {
+    // Not `vitalik.com` any more: that is recognised now and gets a real lookup. This
+    // is a name the pattern still refuses, because hashing it safely would need UTS-46.
     const { fetchImpl, calls } = createFetchStub(() =>
       rpcResult(resolverAnswer(addrRecord(TEST_ADDRESS))),
     );
 
-    const result = await resolveEnsName('vitalik.com', {
+    const result = await resolveEnsName('vitalik_two.eth', {
       rpcUrls: ENDPOINTS,
       fetchImpl,
       logger: silentLogger(),

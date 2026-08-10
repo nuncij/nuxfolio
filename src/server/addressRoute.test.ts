@@ -118,13 +118,16 @@ describe('resolvePortfolioRoute', () => {
     expect(decision).toMatchObject({ kind: 'invalid', message: expect.stringContaining('wait') });
   });
 
-  it('rejects a name-shaped input that is not a .eth name, without a lookup', async () => {
+  it('rejects a name needing normalisation, without a lookup', async () => {
+    // `vitalik.com` used to be the example here, and is now recognised: ENS resolves
+    // DNS-imported namespaces, so a name-shaped input gets a lookup and an honest "not
+    // found". What still stops before a lookup is a name that would need UTS-46 —
+    // an underscore is outside the ASCII subset the hashing is safe for.
     const resolve = resolvesTo();
 
-    const decision = await resolvePortfolioRoute({ addressParam: 'vitalik.com', resolve });
+    const decision = await resolvePortfolioRoute({ addressParam: 'vitalik_two.eth', resolve });
 
     expect(decision).toMatchObject({ kind: 'invalid' });
-    expect(decision.kind === 'invalid' && decision.message).toContain('.eth');
     expect(resolve).not.toHaveBeenCalled();
   });
 

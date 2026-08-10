@@ -47,6 +47,15 @@ export const CCIP_GATEWAYS: readonly CcipGateway[] = [
   },
   { host: 'linea-ccip-gateway.linea.build', serves: '*.linea.eth', verifiedOn: '2026-08-08' },
   {
+    // Added 2026-08-10, two days after the list was written, when `vitalik.box` was
+    // refused. Exactly the maintenance ADR-032 said to expect: a namespace this project
+    // had not met, showing up as a name that would not resolve rather than as a wrong
+    // answer.
+    host: 'api.3dns.xyz',
+    serves: '*.box',
+    verifiedOn: '2026-08-10',
+  },
+  {
     // Seen on the `UniversalResolver.resolve` path rather than the one the app takes.
     // Kept because it is ENS's own batch gateway, and a resolver or a viem upgrade that
     // routes through it should not silently start failing.

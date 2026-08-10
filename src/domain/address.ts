@@ -39,7 +39,7 @@ export function parseWalletAddress(input: string): AddressParseResult {
   if (trimmed.includes('.')) {
     return reject(
       'name-like',
-      'That looks like a name rather than an address. Nuxfolio resolves ENS names ending in ".eth"; anything else has to be a 0x address.',
+      'That looks like a name rather than an address. Nuxfolio resolves ENS names made of letters, digits and hyphens — like "vitalik.eth" or "nick.box". Anything else has to be a 0x address.',
     );
   }
 

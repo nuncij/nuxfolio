@@ -1,12 +1,17 @@
 /**
  * ENS name recognition.
  *
- * Deliberately narrower than ENS itself. Only `.eth` names built from ASCII
- * letters, digits and hyphens are recognised, because that subset needs no
- * normalisation: a name outside it must go through UTS-46 (emoji, mixed scripts,
- * confusable characters) before it can be hashed safely, and guessing at that is
- * how a lookup silently resolves the wrong name. Everything else falls through to
- * address parsing and gets rejected there.
+ * Deliberately narrower than ENS itself: only names built from ASCII letters, digits
+ * and hyphens. That subset needs no normalisation, which is the whole point — a name
+ * outside it must go through UTS-46 (emoji, mixed scripts, confusable characters) before
+ * it can be hashed safely, and guessing at that is how a lookup silently resolves the
+ * wrong name. Everything else falls through to address parsing and gets rejected there.
+ *
+ * **The suffix used to be restricted to `.eth`, and the reason given was this one.** It
+ * did not hold: the character class is what removes the normalisation problem, and an
+ * ASCII `.box` name needs exactly as much of it as an ASCII `.eth` name — none. ENS
+ * resolves DNS-imported namespaces too, and `nick.box` was measured resolving on
+ * 2026-08-10 while the pattern was rejecting it before a lookup was ever attempted.
  *
  * Recognition is a pure, client-safe concern — the form uses it to decide where
  * to navigate, the server uses it to decide what to resolve, and the portfolio
@@ -21,11 +26,15 @@
 export const ENS_NAME_MAX_LENGTH = 255;
 
 /**
- * At least two labels, the last of which is `eth`. Hyphens are allowed anywhere
- * inside a label: ENS is more permissive here than IDNA, and a name that cannot
- * exist simply fails to resolve rather than needing its own rejection rule.
+ * At least two labels, each 1-63 characters, the last starting with a letter.
+ *
+ * Hyphens are allowed anywhere inside a label: ENS is more permissive here than IDNA,
+ * and a name that cannot exist simply fails to resolve rather than needing its own
+ * rejection rule. The final label must begin with a letter so that `1.2.3.4` is read as
+ * a malformed address rather than as a name worth a lookup.
  */
-const ENS_NAME_PATTERN = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.eth$/;
+const ENS_LABEL = '[a-z0-9-]{1,63}';
+const ENS_NAME_PATTERN = new RegExp(`^(?:${ENS_LABEL}\\.)+[a-z][a-z0-9-]{0,62}$`);
 
 export type EnsNameParseResult = { ok: true; name: string } | { ok: false };
 
