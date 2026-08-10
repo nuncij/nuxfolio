@@ -59,6 +59,11 @@ const envSchema = z.object({
 
   /** CoinGecko Demo key. Absent means prices are simply not cross-checked. */
   COINGECKO_API_KEY: z.string().min(8).optional(),
+  /**
+   * Shared secret for `POST /api/snapshot`. Absent means the endpoint reports 404 and no
+   * history is taken — the whole feature is off rather than merely unlocked.
+   */
+  NUXFOLIO_SNAPSHOT_KEY: z.string().min(16).optional(),
   /** Relative difference between two sources before a quote is called disputed. */
   PRICE_DISPUTE_TOLERANCE: z.coerce.number().min(0).max(1).default(0.02),
   /** Share of the priced subtotal a cross-check should cover. */
@@ -141,6 +146,7 @@ export function getSecretValues(env: ServerEnv = getServerEnv()): string[] {
   return [
     env.ALCHEMY_API_KEY,
     env.COINGECKO_API_KEY,
+    env.NUXFOLIO_SNAPSHOT_KEY,
     ...(env.ETHEREUM_RPC_URLS ?? []),
     ...(env.BASE_RPC_URLS ?? []),
     ...(env.ARBITRUM_RPC_URLS ?? []),
