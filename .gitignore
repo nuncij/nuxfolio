@@ -54,3 +54,6 @@ Thumbs.db
 
 # Assembled deploy bundle (built artefact)
 .next/deploy-bundle/
+
+# Local snapshot database (M4). The deployed one lives outside the app directory.
+.data/
