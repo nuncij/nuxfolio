@@ -132,6 +132,9 @@ Environment=HOSTNAME=127.0.0.1
 Environment=PORT=$APP_PORT
 Environment=NODE_ENV=production
 Environment=NEXT_TELEMETRY_DISABLED=1
+# History lives beside the app, never inside it: this script rsyncs \`--delete\` into
+# \`app/\`, so a database there would be removed by the next deploy (M4 review, F-1).
+Environment=NUXFOLIO_DATA_DIR=%h/nuxfolio/data
 # Optional runtime configuration — API keys, RPC endpoints. Absent by default,
 # and never written by this script, so a deploy cannot clobber it.
 EnvironmentFile=-%h/nuxfolio/env
@@ -157,12 +160,57 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=-%h/nuxfolio/app/.next/cache
+# The snapshot database. A second writable path rather than widening the first:
+# \`data/\` is a sibling of \`app/\`, so this grants nothing over the code or the
+# updater's credential in \`updater-env\`.
+ReadWritePaths=-%h/nuxfolio/data
 
 [Install]
 WantedBy=default.target
 UNIT
 
+remote "mkdir -p \"\$HOME/nuxfolio/data\""
 remote "systemctl --user daemon-reload && systemctl --user enable --now $SERVICE && systemctl --user restart $SERVICE"
+
+# --- daily snapshot timer ----------------------------------------------------
+#
+# The history job runs from the host, not from a timer inside the app: a redeploy
+# restarts the process and would silently lose an in-process schedule. Missing or
+# repeating a run costs nothing, because the store is keyed on the UTC day.
+#
+# The key reaches curl through a config file on stdin rather than an argument.
+# This host runs other people's services, and an argument is visible in /proc to
+# anyone who can read it.
+remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-snapshot.service\"" <<SNAPUNIT
+[Unit]
+Description=Nuxfolio daily portfolio snapshot
+After=$SERVICE.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/nuxfolio/env
+# No \`%\` anywhere in this line: systemd reads \`%\` as a unit specifier, so a
+# \`printf "%s"\` here would fail to load rather than fail to run.
+ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "header = \\"x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY\\"" | exec curl -sS --fail --max-time 900 -K - -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
+SNAPUNIT
+
+remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-snapshot.timer\"" <<SNAPTIMER
+[Unit]
+Description=Take a Nuxfolio snapshot once a day
+
+[Timer]
+# UTC, matching the day the rows are keyed on. A local-time schedule would drift
+# across daylight saving and put two runs or none into one UTC bucket.
+OnCalendar=*-*-* 04:17:00 UTC
+# A box that was off at 04:17 still gets its reading.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+SNAPTIMER
+
+remote "systemctl --user daemon-reload && systemctl --user enable --now $SERVICE-snapshot.timer"
 
 # --- self-update timer -------------------------------------------------------
 #
