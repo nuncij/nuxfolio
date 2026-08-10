@@ -693,3 +693,51 @@ The invented selector is the sharper lesson, and it is the same shape as round 1
 predecessor: a claim that _looked_ verified because it kept company with verified ones.
 Four correct constants next to a fifth do not make the fifth correct — and the fix is
 never to be more careful, it is to make the check executable.
+
+---
+
+## Round 14 — the M4 plan, before any code
+
+Codex reviewed the plan for the history milestone. It returned four blockers and a long
+tail of operational findings, and the useful response to it was **not** to adopt them all.
+The owner's warning while it was running — _don't overcomplicate the plan because Codex
+may be too smart_ — is the reason this round is worth recording.
+
+### Adopted, because they were bugs
+
+| #   | Finding                                                                                                                                          | What changed                                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| F-1 | The database file would sit in the directory `deploy.sh` `rsync --delete`s. It would be destroyed by the next deploy.                            | Its own directory, its own systemd write permission, and "survives a deploy" became an exit criterion verified by deploying.              |
+| F-2 | SQLite's numeric affinity converts decimal text to IEEE-754. A `NUMERIC` column would silently undo five milestones of ADR-003.                  | Decimal values stored as `TEXT`, summed through the existing `Decimal` path.                                                              |
+| F-3 | `PRIMARY KEY (address, chain_id, captured_at)` keys on an instant, so a retry or a redeploy mid-run writes a duplicate rather than the same row. | Keyed on a UTC `snapshot_day`. The job became safe to re-run, which is the difference between a cron that may fail and one that must not. |
+| F-4 | Postgres on a 3.8 GB box with no swap needs a load test, a pool, and a memory budget before it can be called safe.                               | SQLite. One writer, one host, ~200-byte rows. ADR-002 named Postgres before the box was known.                                            |
+| F-5 | "98 % is the asset list" was 99.05 %, and the prose quoted 210 KB against its own table's 195 KB.                                                | Corrected, with the error left visible in the plan.                                                                                       |
+| F-6 | The browser-local watchlist is ADR-023, not ADR-009.                                                                                             | Corrected.                                                                                                                                |
+| F-7 | The daily cron is a full provider fan-out per chain, not a cheap write. For a hundred wallets it exceeds ADR-019's CoinGecko quota by itself.    | Recorded as the first open uncertainty, with the fix named: the job skips the enrichments the snapshot does not store.                    |
+
+### Rejected, and the reason is the same one each time
+
+Codex asked for an authentication model, a cardinality cap, per-source quotas, an untrack
+path, deletion authorisation, GDPR retention and backup-restore resurrection semantics — all
+downstream of the plan's own proposal of a user-facing "track this wallet" button.
+
+**The button was the mistake, not the missing controls.** Replacing it with a fixed list of
+the owner's addresses in configuration deletes every one of those questions, because a
+stranger cannot add a row. The site is private and tailnet-only with one user. Codex said
+as much in passing and then costed the general case anyway.
+
+Also rejected: metric/schema versioning, a run-completeness header table (all-or-nothing
+runs make it unnecessary), p50/p95/p99 payload benchmarks with committed provenance, and
+connection-pool design (moot without a daemon).
+
+### What this round is evidence of
+
+A good adversarial review answers the question it was asked, and the question was framed
+around a design that had one avoidable complication in it. Four of Codex's five "blockers"
+were consequences of that single choice. Removing the choice removed them — the revised
+plan is **shorter** than the one that was reviewed.
+
+The lesson is not that the review was wrong. It found two things that would have destroyed
+data and one that would have silently broken the decimal discipline. It is that a reviewer
+optimising for completeness will cost a small project its simplicity unless someone holds
+the line on scope, and on this project that someone is the owner.
