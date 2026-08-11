@@ -172,6 +172,59 @@ ReadWritePaths=-%h/nuxfolio/data
 WantedBy=default.target
 UNIT
 
+# --- egress guard ------------------------------------------------------------
+#
+# Packet-level backstop for the CCIP fetcher's one residual (ADR-032): DNS
+# rebinding between the SSRF guard's check and the fetch. The rule drops NEW
+# connections from the app's own cgroup to internal ranges — other services on
+# the box are untouched, which is why this is not a ufw rule.
+#
+# Everything here was measured on the box (2026-08-11) rather than assumed:
+#  - systemd IPAddressDeny= does not enforce in user scope (curl connected
+#    through IPAddressDeny=any), so it is not used.
+#  - The nft cgroup match binds the app's *running* cgroup instance and dies
+#    when the service restarts, so a companion unit — pulled in by the service
+#    itself — reapplies it on every start.
+#  - systemd-resolved answers on 127.0.0.53, so DNS is carved out before the
+#    loopback drop; without it every provider lookup would fail.
+# Counters make the rule auditable: the DNS accept counters climb with normal
+# traffic, proving the cgroup match is live; the drop counters should stay 0.
+if remote 'sudo -n true' 2>/dev/null; then
+  REMOTE_UID=$(remote 'id -u')
+  remote "sudo -n tee /etc/nuxfolio-egress.nft >/dev/null" <<EGRESSNFT
+table inet nuxfolio_egress
+flush table inet nuxfolio_egress
+table inet nuxfolio_egress {
+  chain out {
+    type filter hook output priority filter; policy accept;
+    socket cgroupv2 level 5 "user.slice/user-$REMOTE_UID.slice/user@$REMOTE_UID.service/app.slice/$SERVICE.service" jump app
+  }
+  chain app {
+    ip daddr 127.0.0.53 udp dport 53 counter accept
+    ip daddr 127.0.0.53 tcp dport 53 counter accept
+    ct state new ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.168.0.0/16, 198.18.0.0/15 } counter drop
+    ct state new ip6 daddr { ::1, fc00::/7, fe80::/10 } counter drop
+  }
+}
+EGRESSNFT
+  remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-egress.service\"" <<EGRESSUNIT
+[Unit]
+Description=Reapply the Nuxfolio egress guard
+After=$SERVICE.service
+PartOf=$SERVICE.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sudo -n /usr/sbin/nft -f /etc/nuxfolio-egress.nft
+
+[Install]
+WantedBy=$SERVICE.service
+EGRESSUNIT
+  remote "systemctl --user daemon-reload && systemctl --user enable $SERVICE-egress.service" >/dev/null
+else
+  say "Egress guard skipped: target has no passwordless sudo"
+fi
+
 # 700, because the box hosts other people's services and the default umask would
 # leave the database listing the tracked wallets readable to every one of them.
 remote "mkdir -p \"\$HOME/nuxfolio/data\" && chmod 700 \"\$HOME/nuxfolio/data\""
