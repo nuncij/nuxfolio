@@ -59,11 +59,13 @@ remote() { ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET" "$@"; }
 say "Checking the target is reachable"
 remote 'echo ok' >/dev/null 2>&1 || fail "cannot reach $TARGET over SSH (is Tailscale up?)"
 
-# A version of node old enough to lack what the build output expects would fail
-# at runtime rather than here, which is a much worse place to find out. 24 because
-# the snapshot store uses node:sqlite, which older majors do not ship stable.
-remote 'node --version' | awk -F. '{ gsub(/v/,"",$1); if ($1 < 24) { print "too old"; exit 1 } }' \
-  >/dev/null || fail "target needs Node 24 or newer (node:sqlite)"
+# A runtime missing what the build output expects would fail after deploy, which is
+# a much worse place to find out. The strictest requirement is node:sqlite, so ask
+# the runtime whether it has it rather than guessing from version tables — measured
+# 2026-08-11: present and unflagged on the box's Node 22.23.2, where a "needs 24"
+# floor would have refused a target that works.
+remote "node -e 'new (require(\"node:sqlite\").DatabaseSync)(\":memory:\")'" >/dev/null 2>&1 \
+  || fail "target's node lacks node:sqlite (ships unflagged in 22.13+ and 23.4+)"
 
 # --- build -------------------------------------------------------------------
 
