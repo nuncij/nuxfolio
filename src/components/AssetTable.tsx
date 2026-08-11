@@ -112,8 +112,8 @@ export function AssetTable({
           className={`w-full ${showWallet ? 'min-w-[66rem]' : showChain ? 'min-w-[58rem]' : 'min-w-[52rem]'} border-collapse text-sm`}
         >
           <caption className="sr-only">
-            Assets held, with quantity, unit price, value, price change over 24 hours and 7 days,
-            and share of the priced total. One row per holding: in a bundle, the same token in two
+            Assets held, with value, quantity, unit price, share of the priced total, and price
+            change over 24 hours and 7 days. One row per holding: in a bundle, the same token in two
             wallets is two rows.
           </caption>
           <thead>
@@ -124,6 +124,28 @@ export function AssetTable({
                 direction={direction}
                 onClick={() => toggleSort('name')}
               />
+              <SortableHeader
+                label="Value"
+                align="right"
+                active={sortKey === 'value'}
+                direction={direction}
+                onClick={() => toggleSort('value')}
+              />
+              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
+                Quantity
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
+                Price
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
+                Share
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
+                24h
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
+                7d
+              </th>
               {showWallet ? (
                 <th scope="col" className="px-4 py-3 text-left font-medium text-ink-muted">
                   Wallet
@@ -134,28 +156,6 @@ export function AssetTable({
                   Network
                 </th>
               ) : null}
-              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
-                Quantity
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
-                Price
-              </th>
-              <SortableHeader
-                label="Value"
-                align="right"
-                active={sortKey === 'value'}
-                direction={direction}
-                onClick={() => toggleSort('value')}
-              />
-              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
-                24h
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
-                7d
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-medium text-ink-muted">
-                Share
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -329,17 +329,7 @@ function AssetRow({
         </div>
       </th>
 
-      {showWallet === true ? (
-        <td className="numeric px-4 py-3 text-left text-xs text-ink-muted">
-          {asset.walletAddress === null || asset.walletAddress === undefined
-            ? '—'
-            : shortenAddress(asset.walletAddress)}
-        </td>
-      ) : null}
-
-      {showChain ? (
-        <td className="px-4 py-3 text-left text-xs text-ink-muted">{asset.chainName ?? '—'}</td>
-      ) : null}
+      <td className="numeric px-4 py-3 text-right font-medium text-ink">{money(asset.valueUsd)}</td>
 
       <td className="numeric px-4 py-3 text-right text-ink">{formatQuantity(asset.quantity)}</td>
 
@@ -355,7 +345,9 @@ function AssetRow({
         )}
       </td>
 
-      <td className="numeric px-4 py-3 text-right font-medium text-ink">{money(asset.valueUsd)}</td>
+      <td className="numeric px-4 py-3 text-right text-ink-muted">
+        {formatPercent(asset.portfolioSharePct)}
+      </td>
 
       <td className="numeric px-4 py-3 text-right">
         <ChangeCell change={asset.priceChange24h} />
@@ -365,9 +357,17 @@ function AssetRow({
         <ChangeCell change={asset.priceChange7d} />
       </td>
 
-      <td className="numeric px-4 py-3 text-right text-ink-muted">
-        {formatPercent(asset.portfolioSharePct)}
-      </td>
+      {showWallet === true ? (
+        <td className="numeric px-4 py-3 text-left text-xs text-ink-muted">
+          {asset.walletAddress === null || asset.walletAddress === undefined
+            ? '—'
+            : shortenAddress(asset.walletAddress)}
+        </td>
+      ) : null}
+
+      {showChain ? (
+        <td className="px-4 py-3 text-left text-xs text-ink-muted">{asset.chainName ?? '—'}</td>
+      ) : null}
     </tr>
   );
 }
