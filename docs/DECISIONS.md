@@ -36,6 +36,9 @@ _The watchlist half of that sentence is superseded by ADR-023._ Saved wallets sh
 as browser-local data and need no database; historical snapshots (M4) are the real
 first case. The decision above — no database — stands.
 
+_The Postgres half is superseded by ADR-033._ M4's store is SQLite through
+`node:sqlite`, chosen after measuring the box the prediction never saw.
+
 ---
 
 ## ADR-003 — Monetary and quantity fields are decimal strings, not `number`
@@ -1237,6 +1240,8 @@ between two things that clause conflated:
 - **Server persistence** — anything that must survive the browser, be shared
   between devices, or be read by something other than the page that wrote it.
   Historical snapshots (M4) are the real first case. That is when Postgres arrives.
+  _(It did not — the store M4 introduced is SQLite, ADR-033. The line this ADR draws
+  is unaffected by which database sits on the server side of it.)_
 
 ADR-002's _decision_ stands unchanged. Only its prediction about which feature would
 force a database was wrong.
@@ -1985,3 +1990,34 @@ disabled.
   and it is the one control worth adding if this box ever hosts anything sensitive.
 - **`.cb.id` and `.box` names still fail**, for an unrelated reason: the name pattern
   accepts only `.eth`. That is a separate limitation and is untouched here.
+
+---
+
+## ADR-033 — The store is SQLite through `node:sqlite`, not Postgres
+
+**Context.** ADR-002 and ADR-023 both predicted that M4's snapshots would be the moment
+"Postgres + Drizzle gets introduced". M4 arrived, and the box was measured first: 3.8 GB
+RAM, **no swap**, a 475 MB neighbour, two cores — and a workload of roughly 200-byte rows
+written once a day by exactly one writer. `docs/M4_PLAN.md` §2–3 holds the measurements;
+review round 14 confirmed the choice.
+
+**Decision.** SQLite, through Node's built-in `node:sqlite` module. One file under
+`NUXFOLIO_DATA_DIR`, outside the application directory the deploy rsyncs `--delete` into.
+Decimal values are `TEXT` columns — measured: a decimal string in a `NUMERIC` column
+comes back an IEEE-754 `real`, which would have undone ADR-003 silently. The identity of
+a reading is `(address, snapshot_day, chain_id)`, so re-running a day rewrites it rather
+than duplicating it, and a run writes all chains in one transaction or none of them.
+
+**Rationale.** Postgres on a swapless 3.8 GB shared box would want a memory budget, a
+connection pool and a load test before it could be called safe, to serve a workload
+SQLite handles with zero new dependencies — `node:sqlite` ships in Node 24. The
+prediction in ADR-002 was written before the box existed; the measurement outranks it.
+
+**Consequences.**
+
+- ADR-002's remaining forward note — _which_ database M4 would bring — is superseded.
+  Its decision, no database until something needs one, held right up to the feature it
+  named.
+- Backup is `cp` of one file; a restore must be performed once before M4 is called done.
+- If a second writer or a second instance ever appears (the ADR-007 trigger), that is
+  the moment to revisit — the store is behind `SnapshotStore`, five functions wide.

@@ -1,6 +1,9 @@
 # M4 — History: the first feature that needs a store
 
-Draft 2026-08-10, revised the same day after review round 14.
+Draft 2026-08-10, revised the same day after review round 14. **Implemented the same
+day**: store, daily job, `/api/snapshot`, `/api/history`, the chart, and the host-side
+timer. The exit criteria that require the VPS — the database surviving a deploy, and one
+restore from backup — stay open until the next deploy is done and checked.
 
 ---
 
@@ -112,9 +115,9 @@ different question ("what would today's holdings have been worth then?") and is 
 every day the balances differed. It is the larger half of M4-3 and the half that can
 mislead. It gets its own decision once there is a real chart to compare it against.
 
-The empty state says history starts when tracking does, and a first snapshot is taken
-immediately when an address joins the list, so the chart is never empty for a tracked
-wallet.
+The empty state says history starts when tracking does, and every deploy starts one
+snapshot run — joining the list means changing the environment, which means deploying —
+so a tracked wallet has its first row the day it joins, not at the next 04:17.
 
 ## 6. What this deliberately does not do
 
@@ -136,13 +139,16 @@ Named so the omissions are choices rather than oversights:
    markets, plus prices and FX. Codex's estimate for a hundred wallets exceeded ADR-019's
    CoinGecko quota by itself. **The job should skip the enrichments the snapshot does not
    store** — cross-check, price history, FX — and that needs measuring before it is
-   scheduled, not after.
+   scheduled, not after. _Resolved: the lean load skips all three and was measured at
+   2,800 ms against the page's 9,359 ms for the benchmark wallet._
 2. **Peak memory, not one reading.** 2,755 MB available was a single sample. SQLite makes
    this far less pressing than Postgres would have, but the neighbour is 475 MB and may
    grow.
 3. **Which total is the history.** `totalValueUsd` is a priced subtotal, and M5 added
    `netOfAaveDebtUsd` beside it. Storing the first without naming it is how a chart quietly
-   becomes "net worth". Decide before the first row is written.
+   becomes "net worth". Decide before the first row is written. _Resolved: both are
+   stored, because a history is the one thing that cannot be backfilled — recording only
+   one would start the other's history on the day somebody wanted it._
 
 ## 8. Exit criteria
 

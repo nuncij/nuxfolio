@@ -191,7 +191,7 @@ Type=oneshot
 EnvironmentFile=-%h/nuxfolio/env
 # No \`%\` anywhere in this line: systemd reads \`%\` as a unit specifier, so a
 # \`printf "%s"\` here would fail to load rather than fail to run.
-ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "header = \\"x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY\\"" | exec curl -sS --fail --max-time 900 -K - -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
+ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "header = \\"x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY\\"" | exec curl -sS --fail --retry 5 --retry-connrefused --retry-delay 2 --max-time 900 -K - -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
 SNAPUNIT
 
 remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-snapshot.timer\"" <<SNAPTIMER
@@ -211,6 +211,13 @@ WantedBy=timers.target
 SNAPTIMER
 
 remote "systemctl --user daemon-reload && systemctl --user enable --now $SERVICE-snapshot.timer"
+
+# One run now, not just at 04:17: a wallet added to the tracked list should get its
+# first row the day it joins, and a deploy is when the list can have changed. The store
+# is keyed on the UTC day, so on every other deploy this rewrites today's rows and adds
+# none. --no-block, because a deploy should not fail over one flaky provider read —
+# curl in the unit retries a refused connection while the app is still starting.
+remote "systemctl --user start --no-block $SERVICE-snapshot.service"
 
 # --- self-update timer -------------------------------------------------------
 #
