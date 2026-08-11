@@ -70,6 +70,32 @@ describe('toHistorySeries', () => {
     ]);
   });
 
+  it('marks a swapped chain as not comparable, even at the same count', () => {
+    // Replacing one network with another keeps the count while changing what the
+    // total measures — the set is the identity, not its size (round 15).
+    const series = toHistorySeries([
+      row({ capturedAt: '2026-08-09T09:00:00.000Z', chainId: 56 }),
+      row({ capturedAt: '2026-08-10T09:00:00.000Z', chainId: 10 }),
+    ]);
+
+    expect(series.map((point) => point.comparable)).toEqual([false, true]);
+  });
+
+  it('answers no net at all when any chain has none', () => {
+    // A stored null means "could not be computed" — the job stores the total for a
+    // debt-free chain — so a summed net missing one chain would understate by an
+    // amount nobody can see. The total keeps sum-of-present semantics because
+    // chainCount qualifies it; the net is exact or absent (round 15).
+    const day = [
+      row({ capturedAt: '2026-08-10T09:00:00.000Z', chainId: 1, netOfAaveDebtUsd: '80' }),
+      row({ capturedAt: '2026-08-10T09:00:00.000Z', chainId: 10, netOfAaveDebtUsd: null }),
+    ];
+    const series = toHistorySeries(day);
+
+    expect(series[0]?.totalValueUsd).toBe('200');
+    expect(series[0]?.netOfAaveDebtUsd).toBeNull();
+  });
+
   it('is empty for a wallet with no history', () => {
     expect(toHistorySeries([])).toEqual([]);
   });

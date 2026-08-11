@@ -157,6 +157,28 @@ describe('when it refuses to answer', () => {
     expect(net).toEqual({ valueUsd: null, reason: 'no-debt' });
   });
 
+  it('calls a failed market unreadable even when no debt is visible anywhere', () => {
+    // The trap in the other direction: with every readable figure showing nothing
+    // owed, "no debt" is still not a conclusion a failed read can support — its debt
+    // is invisible, not absent. The unreadable answer must win the race (round 15).
+    const net = computeNetOfDebt({
+      totalValueUsd: '154.46',
+      assets,
+      accounts: [
+        account({
+          status: 'failed',
+          collateralValueUsd: null,
+          borrowedValueUsd: null,
+          healthFactor: null,
+          positions: [],
+          positionsStatus: 'failed',
+        }),
+      ],
+    });
+
+    expect(net).toEqual({ valueUsd: null, reason: 'market-unreadable' });
+  });
+
   it('refuses when a market could not be read at all', () => {
     // Its debt is unknown, so any figure would be a guess dressed as a net worth.
     const net = computeNetOfDebt({

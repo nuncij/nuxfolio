@@ -20,7 +20,7 @@ import { useMoney } from './DisplayProvider';
  * frame would imply the wallet is flat rather than unobserved.
  */
 export function HistoryChart({ address, chainId }: { address: string; chainId?: number }) {
-  const [points, setPoints] = useState<readonly HistoryPoint[] | null>(null);
+  const [points, setPoints] = useState<readonly HistoryPoint[] | 'failed' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,15 +28,23 @@ export function HistoryChart({ address, chainId }: { address: string; chainId?: 
     // blocking the page for. A wallet with none simply never renders this.
     const scope = chainId === undefined ? '' : `&chainId=${chainId}`;
     fetch(`/api/history?address=${encodeURIComponent(address)}${scope}`)
-      .then((response) => (response.ok ? response.json() : { points: [] }))
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(String(response.status));
+        }
+        return response.json();
+      })
       .then((body: { points?: readonly HistoryPoint[] }) => {
         if (!cancelled) {
           setPoints(body.points ?? []);
         }
       })
       .catch(() => {
+        // A failed read is not "no history" — the store only errors for a wallet it
+        // was actually asked about, and silence here would make a broken store look
+        // like a wallet nobody tracks (round 15).
         if (!cancelled) {
-          setPoints([]);
+          setPoints('failed');
         }
       });
     return () => {
@@ -44,7 +52,26 @@ export function HistoryChart({ address, chainId }: { address: string; chainId?: 
     };
   }, [address, chainId]);
 
-  if (points === null || points.length === 0) {
+  if (points === null) {
+    return null;
+  }
+
+  if (points === 'failed') {
+    return (
+      <section
+        aria-label="Recorded history"
+        className="rounded-xl border border-line bg-surface p-4"
+      >
+        <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">History</h2>
+        <p className="mt-3 text-sm text-ink-muted">
+          Recorded history could not be read this time. The readings themselves are safe; only this
+          page&rsquo;s view of them failed.
+        </p>
+      </section>
+    );
+  }
+
+  if (points.length === 0) {
     return null;
   }
 
@@ -112,20 +139,34 @@ function Series({ points }: { points: readonly HistoryPoint[] }) {
   const x = (index: number) => ((at(points[index]!) - firstAt) / elapsed) * 100;
   const y = (value: number) => 30 - ((value - min) / span) * 26;
 
-  // Each unbroken run of recorded days is its own path, so a missing day leaves a gap.
+  // Each unbroken run of recorded days is its own path, so a missing day leaves a gap —
+  // whether it was recorded and unpriceable (a null value) or never recorded at all (a
+  // date jump). Connecting across an absent day would draw a reading nobody took
+  // (round 15). A run of one is drawn as a dot, because a path with one point renders
+  // as nothing and an isolated reading must not vanish.
+  const DAY_MS = 86_400_000;
   const runs: string[] = [];
   let current: string[] = [];
+  let previousRecorded = -1;
+  const close = () => {
+    if (current.length === 1) runs.push(`${current[0]} l0.01 0`);
+    if (current.length > 1) runs.push(current.join(' '));
+    current = [];
+  };
   for (const [index, value] of values.entries()) {
     if (value === null) {
-      if (current.length > 0) runs.push(current.join(' '));
-      current = [];
+      close();
       continue;
+    }
+    if (previousRecorded >= 0 && at(points[index]!) - at(points[previousRecorded]!) > DAY_MS) {
+      close();
     }
     current.push(
       `${current.length === 0 ? 'M' : 'L'}${x(index).toFixed(2)},${y(value).toFixed(2)}`,
     );
+    previousRecorded = index;
   }
-  if (current.length > 0) runs.push(current.join(' '));
+  close();
 
   const latest = points.at(-1);
 
@@ -145,6 +186,7 @@ function Series({ points }: { points: readonly HistoryPoint[] }) {
             fill="none"
             stroke="currentColor"
             strokeWidth="0.6"
+            strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
             className="text-accent"
           />

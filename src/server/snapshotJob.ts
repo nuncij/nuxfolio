@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { WalletAddress } from '@/domain/address';
+import { computeNetOfDebt } from '@/domain/netOfDebt';
 import type { AggregatePortfolio } from '@/domain/portfolio';
 
 import type { Logger } from './logger';
@@ -76,16 +77,31 @@ export async function captureSnapshots(input: {
  * The instant is the job's, not each chain's: the chains finish milliseconds apart and a
  * shared timestamp is what makes the five rows recognisable as one reading. The day they
  * belong to is derived from it inside the store.
+ *
+ * **The stored net fills in what the page leaves blank.** On the page, a debt-free
+ * chain's `netOfAaveDebtUsd` is null because a second copy of the total says nothing
+ * (ADR-029). In storage that null would be ambiguous with "could not be computed", and
+ * summing across chains would then silently drop every debt-free chain from the
+ * aggregate net — review round 15's one high finding. So the reason is recovered here,
+ * and a chain that owes nothing stores its total as its net, which is what a net of
+ * zero debt is. Null in a stored row always means "not computable".
  */
 function toSnapshots(aggregate: AggregatePortfolio, capturedAt: string): readonly Snapshot[] {
-  return aggregate.chains.map((chain) => ({
-    address: aggregate.address,
-    chainId: chain.chainId,
-    capturedAt,
-    totalValueUsd: chain.totalValueUsd,
-    netOfAaveDebtUsd: chain.netOfAaveDebtUsd,
-    assetCount: chain.assetCount,
-    pricedCount: chain.pricedAssetCount,
-    coverage: chain.coverage,
-  }));
+  return aggregate.chains.map((chain) => {
+    const net = computeNetOfDebt({
+      totalValueUsd: chain.totalValueUsd,
+      assets: chain.assets,
+      accounts: chain.protocolAccounts,
+    });
+    return {
+      address: aggregate.address,
+      chainId: chain.chainId,
+      capturedAt,
+      totalValueUsd: chain.totalValueUsd,
+      netOfAaveDebtUsd: net.reason === 'no-debt' ? chain.totalValueUsd : net.valueUsd,
+      assetCount: chain.assetCount,
+      pricedCount: chain.pricedAssetCount,
+      coverage: chain.coverage,
+    };
+  });
 }

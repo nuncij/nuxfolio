@@ -55,6 +55,10 @@ export type Snapshot = {
    * minus what it owes Aave (ADR-029) — and a history is the one thing that cannot be
    * backfilled. Recording only one now would start the other's history on the day
    * somebody wanted it.
+   *
+   * Unlike the page's field, a debt-free chain stores its **total** here, not null:
+   * in a stored row, null always means "not computable", never "nothing owed". The
+   * job makes that translation (see `snapshotJob.toSnapshots`).
    */
   readonly netOfAaveDebtUsd: string | null;
   readonly assetCount: number;

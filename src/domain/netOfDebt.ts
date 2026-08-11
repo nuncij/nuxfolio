@@ -54,6 +54,16 @@ export function computeNetOfDebt(input: {
       account.positions.length > 0,
   );
 
+  // A market that did not answer, or that cannot say which assets its totals are made
+  // of, leaves the double count undetectable: adding its collateral would count a
+  // listed receipt token twice, and not adding it would drop the collateral entirely.
+  // Both are wrong by thousands of dollars, so neither is guessed at. Checked before
+  // the debt test, because "no debt" is a claim about a market that answered — a failed
+  // read showing no debt is a market whose debt is invisible, not absent (round 15).
+  if (engaged.some((account) => account.status === 'failed' || account.positionsStatus !== 'ok')) {
+    return { valueUsd: null, reason: 'market-unreadable' };
+  }
+
   if (!engaged.some((account) => isPositive(account.borrowedValueUsd))) {
     // Nothing is owed, so the net figure is the total and a second copy of it would
     // only invite the reader to look for a difference that is not there.
@@ -62,14 +72,6 @@ export function computeNetOfDebt(input: {
 
   if (totalValueUsd === null) {
     return { valueUsd: null, reason: 'nothing-priced' };
-  }
-
-  // A market that did not answer, or that cannot say which assets its totals are made
-  // of, leaves the double count undetectable: adding its collateral would count a
-  // listed receipt token twice, and not adding it would drop the collateral entirely.
-  // Both are wrong by thousands of dollars, so neither is guessed at.
-  if (engaged.some((account) => account.status === 'failed' || account.positionsStatus !== 'ok')) {
-    return { valueUsd: null, reason: 'market-unreadable' };
   }
 
   const positions = engaged.flatMap((account) => account.positions);

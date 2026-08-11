@@ -741,3 +741,56 @@ The lesson is not that the review was wrong. It found two things that would have
 data and one that would have silently broken the decimal discipline. It is that a reviewer
 optimising for completeness will cost a small project its simplicity unless someone holds
 the line on scope, and on this project that someone is the owner.
+
+## Round 15 — M4, after implementation
+
+Codex reviewed the finished milestone (`git diff 284b18a..HEAD -- src scripts`) for
+correctness, security, the systemd escaping, and over-engineering. It called the
+foundations sound — schema, prepared SQL, key comparison, heredoc quoting, UTC keying —
+and would not sign off over one high finding and ten smaller ones. Eight were adopted,
+three rejected. The high finding was real, latent, and would have been unfixable later:
+history is the one thing that cannot be backfilled, and the deploy that writes the first
+production row had not happened yet. This review ran a day before it could become
+permanent.
+
+### Adopted
+
+| #    | Finding                                                                                                                                                                                      | What changed                                                                                                                                                                                                                                  |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-1  | **(high)** A debt-free chain stores `null` for its net — indistinguishable from "not computable" — so a summed net silently drops every debt-free chain from the aggregate.                  | The job recovers the `no-debt` reason and stores the total, which is what a net of zero debt is; in a stored row `null` now always means "not computable", and the summed net is all-chains-or-null. Found before any production row existed. |
+| F-1a | (found while fixing F-1) `computeNetOfDebt` tested for debt before testing readability, so a failed market with no _visible_ debt was classified `no-debt`.                                  | Order swapped: a market that did not answer cannot certify there is nothing owed. Harmless on the page (both render as null); wrong in a stored row.                                                                                          |
+| F-3  | A day the job skipped is bridged by the chart's line — a reading nobody took, drawn between two real ones.                                                                                   | A date jump of more than one day breaks the path exactly like an unpriceable day does; an isolated reading renders as a dot rather than vanishing.                                                                                            |
+| F-4  | `domain/history.ts` imported raw `decimal.js` at its default 20-digit precision instead of the repo's own `Money` (precision 50, built so "Nuxfolio's precision settings cannot leak").      | One import. The same raw import exists in three M5 domain files where every value is provably below 20 digits; recorded here as a follow-up rather than relitigated.                                                                          |
+| F-6  | The deploy preflight accepted Node 20, but `node:sqlite` needs a newer major — the deploy would succeed and the restarted app would die at import.                                           | Floor raised to 24, with the reason in the error message.                                                                                                                                                                                     |
+| F-7  | Under the default umask on a shared host, the data directory and database are world-readable — a listing of the owner's wallets.                                                             | `chmod 700` on the data directory at deploy time.                                                                                                                                                                                             |
+| F-8  | `comparable` compared chain _counts_, so swapping one network for another kept old days "comparable" across two different questions — while the field's own docstring said "set".            | Compared as a set. The comment was already writing the check the code didn't make (the sixth time measuring a stated property found a defect).                                                                                                |
+| F-9  | No test exercised `POST /api/snapshot` — the one route that writes, and the one whose 404-not-401 posture is deliberate.                                                                     | Five contract tests: no key configured, missing header, wrong key, wrong-length key (the `timingSafeEqual` guard), and a correct key against an empty list.                                                                                   |
+| F-10 | `NUXFOLIO_TRACKED_WALLETS`, `NUXFOLIO_SNAPSHOT_KEY` and `NUXFOLIO_DATA_DIR` were absent from `.env.example`, so the documented setup path yields a timer that succeeds at recording nothing. | Documented, including why the wallet list lives in the environment at all.                                                                                                                                                                    |
+| F-11 | The chart converts any failure into an empty series, so a broken store is indistinguishable from a wallet nobody tracks.                                                                     | A third state: a failed read says "could not be read this time", the same honesty split (`failed` ≠ `unavailable`) the staking panel already makes.                                                                                           |
+| F-2  | (partial) Only tracked requests opened SQLite, so response time separated tracked-but-empty from untracked.                                                                                  | The store is queried for every well-formed address and the tracked check gates the body, so the stopwatch and the body now agree on what is not answered.                                                                                     |
+
+### Rejected, with the residual named
+
+- **F-2 (the rest): the history route cannot fully hide which wallets are tracked.** A
+  tracked wallet with recorded days answers with them — that is the feature. The
+  boundary is drawn where it is enforceable: delisted wallets' rows and the shape of the
+  refusal disclose nothing, and the audience is bounded by the deployment being
+  tailnet-only. Accepted residual: anyone on the tailnet can distinguish a tracked
+  wallet by asking for its history.
+- **F-5: `Number()` for SVG coordinates.** Coordinates are geometry, not arithmetic — a
+  collapse needs two totals closer than a hundredth of a pixel, and an infinity needs a
+  wallet worth more than 10^308 dollars. The displayed figure never passes through the
+  float; ADR-003 governs values, not pixels.
+- **F-3 (the "explained" half): storing per-day skip reasons.** A reasons table is new
+  machinery for a question the journal already answers (`snapshot.wallet_incomplete`,
+  with the reason). The gap in the chart now shows _that_ a day is missing; _why_ lives
+  in the logs until someone actually asks it of the page.
+
+### What this round is evidence of
+
+The one high finding was invisible to every test because it was a semantic hole, not a
+logic error: both meanings of `null` were individually correct and jointly ambiguous, and
+nothing forced the distinction until the first summed net — which no UI draws yet. It was
+caught by review at the only time it could be fixed for free. The same review's smallest
+finding (F-8) was the docstring-says-set, code-checks-count mismatch: the sixth instance
+of a stated property failing when finally measured.

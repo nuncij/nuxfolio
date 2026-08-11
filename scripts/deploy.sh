@@ -60,9 +60,10 @@ say "Checking the target is reachable"
 remote 'echo ok' >/dev/null 2>&1 || fail "cannot reach $TARGET over SSH (is Tailscale up?)"
 
 # A version of node old enough to lack what the build output expects would fail
-# at runtime rather than here, which is a much worse place to find out.
-remote 'node --version' | awk -F. '{ gsub(/v/,"",$1); if ($1 < 20) { print "too old"; exit 1 } }' \
-  >/dev/null || fail "target needs Node 20 or newer"
+# at runtime rather than here, which is a much worse place to find out. 24 because
+# the snapshot store uses node:sqlite, which older majors do not ship stable.
+remote 'node --version' | awk -F. '{ gsub(/v/,"",$1); if ($1 < 24) { print "too old"; exit 1 } }' \
+  >/dev/null || fail "target needs Node 24 or newer (node:sqlite)"
 
 # --- build -------------------------------------------------------------------
 
@@ -169,7 +170,9 @@ ReadWritePaths=-%h/nuxfolio/data
 WantedBy=default.target
 UNIT
 
-remote "mkdir -p \"\$HOME/nuxfolio/data\""
+# 700, because the box hosts other people's services and the default umask would
+# leave the database listing the tracked wallets readable to every one of them.
+remote "mkdir -p \"\$HOME/nuxfolio/data\" && chmod 700 \"\$HOME/nuxfolio/data\""
 remote "systemctl --user daemon-reload && systemctl --user enable --now $SERVICE && systemctl --user restart $SERVICE"
 
 # --- daily snapshot timer ----------------------------------------------------

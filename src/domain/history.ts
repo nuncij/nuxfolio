@@ -1,5 +1,4 @@
-import { Decimal } from 'decimal.js';
-
+import { Money } from '@/domain/money';
 import type { Snapshot } from '@/server/snapshotStore';
 
 /**
@@ -23,7 +22,14 @@ export type HistoryPoint = {
   readonly day: string;
   /** Sum across the chains recorded that day. Null when none of them could be priced. */
   readonly totalValueUsd: string | null;
-  /** The same, net of Aave debt. Null when no chain had a computable figure. */
+  /**
+   * The same, net of Aave debt — but all chains or nothing. A stored null means a
+   * chain's net could not be computed (a debt-free chain stores its total), and a
+   * "net" missing one chain's figure understates by an amount nobody can see. The
+   * total above keeps sum-of-present semantics because `chainCount` and `coverage`
+   * already qualify it; this field is the headline honesty number and gets no
+   * qualifier, so it is exact or absent.
+   */
   readonly netOfAaveDebtUsd: string | null;
   /** How many chains contributed. */
   readonly chainCount: number;
@@ -50,17 +56,27 @@ export function toHistorySeries(snapshots: readonly Snapshot[]): readonly Histor
   const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
   // The newest day defines what "a full reading" looks like for this deployment. Older
-  // days with a different chain count are marked rather than dropped: they are real
-  // observations, they are simply not comparable with the ones beside them.
-  const newestChainCount = days.at(-1)?.[1].length ?? 0;
+  // days with a different chain set are marked rather than dropped: they are real
+  // observations, they are simply not comparable with the ones beside them. The set,
+  // not the count — swapping one network for another keeps the count while changing
+  // what the total measures (round 15).
+  const signature = (rows: Snapshot[]) =>
+    rows
+      .map((row) => row.chainId)
+      .sort((a, b) => a - b)
+      .join(',');
+  const newestSignature = signature(days.at(-1)?.[1] ?? []);
 
-  return days.map(([day, rows]) => ({
-    day,
-    totalValueUsd: sum(rows.map((row) => row.totalValueUsd)),
-    netOfAaveDebtUsd: sum(rows.map((row) => row.netOfAaveDebtUsd)),
-    chainCount: rows.length,
-    comparable: rows.length === newestChainCount,
-  }));
+  return days.map(([day, rows]) => {
+    const nets = rows.map((row) => row.netOfAaveDebtUsd);
+    return {
+      day,
+      totalValueUsd: sum(rows.map((row) => row.totalValueUsd)),
+      netOfAaveDebtUsd: nets.some((net) => net === null) ? null : sum(nets),
+      chainCount: rows.length,
+      comparable: signature(rows) === newestSignature,
+    };
+  });
 }
 
 /**
@@ -76,7 +92,7 @@ function sum(values: readonly (string | null)[]): string | null {
   if (present.length === 0) {
     return null;
   }
-  return present.reduce((total, value) => new Decimal(total).plus(value).toFixed(), '0');
+  return present.reduce((total, value) => new Money(total).plus(value).toFixed(), '0');
 }
 
 /**
@@ -97,13 +113,13 @@ export function describeChange(
     return null;
   }
 
-  const start = new Decimal(first.totalValueUsd!);
+  const start = new Money(first.totalValueUsd!);
   if (start.isZero()) {
     return null;
   }
 
   return {
-    pct: new Decimal(last.totalValueUsd!).minus(start).dividedBy(start).times(100).toFixed(2),
+    pct: new Money(last.totalValueUsd!).minus(start).dividedBy(start).times(100).toFixed(2),
     from: first.day,
     to: last.day,
   };

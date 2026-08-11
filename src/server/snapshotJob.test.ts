@@ -79,12 +79,42 @@ describe('captureSnapshots', () => {
     expect(new Set(rows.map((row) => row.capturedAt))).toEqual(new Set([AT]));
   });
 
-  it('stores both totals, because history cannot be backfilled', async () => {
+  it('stores the total as the net for a chain that owes nothing', async () => {
+    // The page's field is null for a debt-free chain (a second copy of the total says
+    // nothing, ADR-029), but in storage that null would be ambiguous with "could not
+    // be computed" and would drop the chain from any summed net (round 15). The job
+    // recomputes the reason and stores what a net of zero debt is: the total.
     const { store } = await run(async () => aggregate());
 
     expect(store.history(TEST_ADDRESS)[0]).toMatchObject({
       totalValueUsd: '17604.90314556',
-      netOfAaveDebtUsd: '9523.39497980',
+      netOfAaveDebtUsd: '17604.90314556',
+    });
+  });
+
+  it('stores null for a chain whose market could not be read', async () => {
+    // A failed market may hide debt, so "no debt visible" must not become "no debt".
+    const failedMarket = {
+      chainId: 1,
+      protocol: 'aave-v3' as const,
+      marketId: '1:core',
+      marketName: 'Aave v3 Core',
+      status: 'failed' as const,
+      collateralValueUsd: null,
+      borrowedValueUsd: null,
+      healthFactor: null,
+      positions: [],
+      positionsStatus: 'failed' as const,
+      rewards: [],
+      rewardsStatus: 'failed' as const,
+    };
+    const { store } = await run(async () =>
+      aggregate({ chains: [chain({ protocolAccounts: [failedMarket] })] }),
+    );
+
+    expect(store.history(TEST_ADDRESS)[0]).toMatchObject({
+      totalValueUsd: '17604.90314556',
+      netOfAaveDebtUsd: null,
     });
   });
 
