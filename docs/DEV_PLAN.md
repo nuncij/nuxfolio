@@ -241,8 +241,10 @@ store, which is the ADR-002 trigger for introducing one.
 
 **Exit criteria:** ~~a chart whose two line styles are visually and verbally
 distinguished~~ (one line style, by decision — see M4-3); snapshots survive
-deploys — **open until the next deploy verifies it**, along with one restore
-from backup.
+deploys — **verified 2026-08-11** by deploying twice against the same database
+(same inode, same rows), with one restore from backup performed and matching the
+pre-drill API response byte for byte. `M4_PLAN.md` §8 carries each criterion's
+measurement. **Milestone 4 is complete and live.**
 
 ### Milestone 5 — DeFi protocol accounting (kickoff Phase 3)
 

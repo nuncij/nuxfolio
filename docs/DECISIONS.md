@@ -1988,6 +1988,22 @@ disabled.
   take over DNS for Coinbase, Uniswap, Linea or ENS. The complete fix is an egress rule on
   the host itself, applied at packet-send time — no application code substitutes for it,
   and it is the one control worth adding if this box ever hosts anything sensitive.
+
+  _Addendum, 2026-08-11 — the egress rule now exists_, scoped to the app's own cgroup so
+  the shared box's other services are untouched: an nftables `socket cgroupv2` match on
+  `nuxfolio.service` drops NEW connections to loopback, RFC1918, link-local, CGNAT and
+  the benchmarking ranges, with a carve-out for systemd-resolved on `127.0.0.53:53`.
+  Three measurements shaped it (all on the box, none assumed): systemd `IPAddressDeny=`
+  does not enforce in user scope there; the nft cgroup match binds the _running_ cgroup
+  instance and dies on restart, so a companion unit pulled in by the service reapplies
+  it on every start; and a blanket loopback drop would have severed DNS. The guard is
+  auditable live — `nft list table inet nuxfolio_egress` shows the DNS accept counters
+  climbing with real traffic and the drop counters at zero. What remains: the guard
+  depends on the box's passwordless sudo staying in place (a failed reapply is visible
+  as a failed `nuxfolio-egress.service`), and rebinding to a _public_ address was never
+  blocked because public is what the gateways legitimately are — that class is bounded
+  by the response-shape validation, not by the network.
+
 - **`.cb.id` and `.box` names still fail**, for an unrelated reason: the name pattern
   accepts only `.eth`. That is a separate limitation and is untouched here.
 

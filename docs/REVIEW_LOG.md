@@ -794,3 +794,25 @@ nothing forced the distinction until the first summed net — which no UI draws 
 caught by review at the only time it could be fixed for free. The same review's smallest
 finding (F-8) was the docstring-says-set, code-checks-count mismatch: the sixth instance
 of a stated property failing when finally measured.
+
+### Round 15 addendum — what deploying found the day after
+
+Two of the round's own fixes were corrected by the deploy that followed, which is worth
+recording in the same place:
+
+- **F-6's "Node 24 floor" was wrong in the other direction.** The box runs Node 22.23.2,
+  where `node:sqlite` works unflagged — measured with one `require` over SSH — so the
+  floor would have refused a target that works. The preflight now probes the capability
+  itself instead of trusting a version table, which is also the check that cannot go
+  stale.
+- **The timer unit failed its first real run**, and not for any reason the review had
+  listed: systemd interprets C-style escapes inside quoted `ExecStart` arguments, so the
+  quoted `-K -` curl config reached sh with its backslash-escaped quotes eaten, and curl
+  sent a header that matched nothing (404). Proven with a throwaway unit dumping what sh
+  actually received. The header now arrives via `-H @-` on stdin — no quoting for
+  systemd to interpret, and the key still never touches a command line.
+
+The deploy also closed ADR-032's residual: the cgroup-scoped egress guard is live, after
+three measurements that each redirected the design (see the ADR-032 addendum). The
+pattern of the whole milestone held to the end — every mechanism trusted without being
+measured turned out to differ from its documentation, and every measurement was cheap.

@@ -2,8 +2,8 @@
 
 Draft 2026-08-10, revised the same day after review round 14. **Implemented the same
 day**: store, daily job, `/api/snapshot`, `/api/history`, the chart, and the host-side
-timer. The exit criteria that require the VPS — the database surviving a deploy, and one
-restore from backup — stay open until the next deploy is done and checked.
+timer. **Deployed and verified 2026-08-11** — every exit criterion in §8 now carries the
+measurement that closed it.
 
 ---
 
@@ -150,12 +150,28 @@ Named so the omissions are choices rather than oversights:
    stored, because a history is the one thing that cannot be backfilled — recording only
    one would start the other's history on the day somebody wanted it._
 
-## 8. Exit criteria
+## 8. Exit criteria — all verified 2026-08-11
 
 - A chart for a configured wallet, from real snapshots, with an honest empty state.
+  _Verified: the tracked wallet's chart renders from the production row; an untracked
+  address gets `{"points":[]}`, identical to a wallet with no history._
 - Re-running the job the same day changes no row and adds none.
+  _Verified in production: three runs on 2026-08-11 (one manual, two deploy kicks) left
+  exactly five rows for the day._
 - A run where one chain fails writes nothing for that day, and the page says why.
+  _Verified by unit test; the chart draws such a day as a break in the line._
 - The database survives a deploy — verified by deploying, not by assuming.
+  _Verified: same inode (410907) and identical rows before and after a second deploy._
 - A restore from backup performed once.
+  _Performed: WAL checkpoint, copy to `~/nuxfolio/backup/`, live file deleted, API
+  answered `{"points":[]}` (the app survives losing the store), backup copied into
+  place, API response matched the pre-drill response byte for byte._
 - `totalValueUsd` stays byte-identical for every existing test: this milestone records a
-  number, it does not change one.
+  number, it does not change one. _The suite passed unchanged throughout._
+
+What deploying then found that the review had not: the timer unit's quoted `-K -` curl
+config reached sh with its escaped quotes eaten — systemd interprets C-style escapes
+inside quoted `ExecStart` arguments — so the header matched nothing and the first kick
+failed 404. And the round-15 "Node 24 floor" refused the box's working Node 22.23.2, so
+the preflight now probes `node:sqlite` itself instead of trusting a version table. Both
+fixes exist because the criterion said _verified by deploying_.
