@@ -194,9 +194,14 @@ After=$SERVICE.service
 [Service]
 Type=oneshot
 EnvironmentFile=-%h/nuxfolio/env
-# No \`%\` anywhere in this line: systemd reads \`%\` as a unit specifier, so a
-# \`printf "%s"\` here would fail to load rather than fail to run.
-ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "header = \\"x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY\\"" | exec curl -sS --fail --retry 5 --retry-connrefused --retry-delay 2 --max-time 900 -K - -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
+# Two characters may not appear in this line. No \`%\`: systemd reads it as a unit
+# specifier and the unit fails to load. No \`\\\`: systemd interprets C-style escapes
+# inside quoted arguments, so an escaped quote reaches sh with its backslash eaten —
+# the first version used a quoted \`-K -\` config line, and curl received it without
+# its quotes and sent a header that matched nothing (measured on the box, round 15
+# follow-up). \`-H @-\` takes the header from stdin with no quoting at all, and the
+# key still never appears on a command line \`/proc\` could show.
+ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY" | exec curl -sS --fail --retry 5 --retry-connrefused --retry-delay 2 --max-time 900 -H @- -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
 SNAPUNIT
 
 remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-snapshot.timer\"" <<SNAPTIMER
