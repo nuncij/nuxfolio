@@ -130,7 +130,12 @@ Named so the omissions are choices rather than oversights:
 - **No metric versioning, no run/completeness table.** All-or-nothing runs make the second
   unnecessary; the first is worth having only once a stored number has changed meaning.
 - **No off-box backup in v1** — but the file is small enough that one is cheap, and a
-  restore should be performed once before this is called done.
+  restore should be performed once before this is called done. _Both exist as of
+  2026-08-11: the restore was performed (§8), and the snapshot service now writes a
+  dated copy after every reading (`scripts/snapshot-backup.sh`, newest 14 kept on the
+  box) which the workstation pulls off-box daily and on every deploy
+  (`scripts/backup-pull.sh` — pulls never delete, so the deep history accumulates
+  where the box's disk cannot take it)._
 
 ## 7. What is still uncertain
 

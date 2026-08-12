@@ -255,6 +255,10 @@ EnvironmentFile=-%h/nuxfolio/env
 # follow-up). \`-H @-\` takes the header from stdin with no quoting at all, and the
 # key still never appears on a command line \`/proc\` could show.
 ExecStart=/bin/sh -c 'test -n "\$NUXFOLIO_SNAPSHOT_KEY" || exit 0; echo "x-snapshot-key: \$NUXFOLIO_SNAPSHOT_KEY" | exec curl -sS --fail --retry 5 --retry-connrefused --retry-delay 2 --max-time 900 -H @- -X POST http://127.0.0.1:$APP_PORT/api/snapshot'
+# A dated backup right after every successful reading, so a copy exists exactly
+# when there is something new to lose. The workstation pulls these off-box
+# (scripts/backup-pull.sh).
+ExecStartPost=/usr/bin/env bash %h/nuxfolio/bin/snapshot-backup.sh
 SNAPUNIT
 
 remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-snapshot.timer\"" <<SNAPTIMER
@@ -292,7 +296,9 @@ say "Installing the self-update timer"
 remote "mkdir -p $REMOTE_ROOT/bin"
 rsync -az -e 'ssh -o BatchMode=yes -o ConnectTimeout=10' \
   scripts/self-update.sh "$TARGET:$REMOTE_ROOT/bin/self-update.sh"
-remote "chmod +x $REMOTE_ROOT/bin/self-update.sh"
+rsync -az -e 'ssh -o BatchMode=yes -o ConnectTimeout=10' \
+  scripts/snapshot-backup.sh "$TARGET:$REMOTE_ROOT/bin/snapshot-backup.sh"
+remote "chmod +x $REMOTE_ROOT/bin/self-update.sh $REMOTE_ROOT/bin/snapshot-backup.sh"
 
 remote "cat > \"\$HOME/.config/systemd/user/$SERVICE-update.service\"" <<UNIT
 [Unit]
@@ -426,6 +432,10 @@ if git tag -f deployed HEAD >/dev/null 2>&1 &&
 else
   printf '  \033[33mcould not push the tag; the refresh job will not see this deploy\033[0m\n'
 fi
+
+# Every deploy also refreshes the off-box copy of the snapshot backups: the
+# machine that can deploy is, by definition, a machine that is not the box.
+bash scripts/backup-pull.sh || printf '  \033[33mbackup pull failed; the daily timer will retry\033[0m\n'
 
 printf '\n\033[32mDeployed.\033[0m  commit %s\n' "$(git rev-parse --short HEAD)"
 printf '  local on target : http://127.0.0.1:%s\n' "$APP_PORT"
