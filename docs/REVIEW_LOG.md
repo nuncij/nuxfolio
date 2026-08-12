@@ -816,3 +816,44 @@ The deploy also closed ADR-032's residual: the cgroup-scoped egress guard is liv
 three measurements that each redirected the design (see the ADR-032 addendum). The
 pattern of the whole milestone held to the end — every mechanism trusted without being
 measured turned out to differ from its documentation, and every measurement was cheap.
+
+## Round 16 — the manual-entries plan, before any code
+
+Codex reviewed `MANUAL_ENTRIES_PLAN.md` against the code its claims named. One blocker,
+seven adopted findings, one finding that removed something from the plan, and a set of
+verified non-findings that are worth as much as the findings.
+
+### The blocker
+
+The draft priced entries through "the existing DefiLlama passthrough path". There is no
+such path: the adapter accepts only EVM chain+address refs and derives `coingecko:` ids
+internally, for natives alone. The endpoint answers raw refs keylessly (measured the
+same day), but the adapter seam has to be _built_ — a direct-by-ref lookup returning the
+standard quote shape through `assessPriceQuality`. The plan now names it as the first
+work item. Fifth time a plan's confident claim about this codebase was wrong; first time
+Codex caught it before a line existed.
+
+### Adopted
+
+Quantity validation through the shared decimal parser; `priceCheck: null` stated for v1
+(the cross-check does not cover raw refs, and unchecked must not read as agreed); the
+EUR display seam on `/manual`; the full pseudo-row shape fixed now (net = total,
+per round 15's debt-free semantics; coverage `'manual'`) because history cannot be
+backfilled; deletion semantics for the pseudo-row and independence from the
+zero-wallets early return; the complete snapshot-key posture for `NUXFOLIO_EDIT_KEY`
+(typed env, redaction, `.env.example`, contract tests); and the global honesty copy —
+"reads public chain data only" stops being the whole truth the day this ships, on every
+page, not just the new one.
+
+### Removed at the review's suggestion
+
+Save-time ref resolution against the provider. A typo renders as an honestly-unpriced
+row the owner is looking straight at; a network dependency in every write is a real
+failure mode purchased to prevent a cosmetic one.
+
+### Verified non-findings
+
+The pseudo-row cannot leak into any wallet's history series (exact-address select), the
+primary key upserts `('manual', day, 0)` safely, the backup covers both tables, and the
+localStorage-key write gate is adequate for a single-owner tailnet — each checked
+against the code, not asserted.
