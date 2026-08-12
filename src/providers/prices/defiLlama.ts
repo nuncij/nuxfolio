@@ -44,6 +44,9 @@ const CHAIN_NAMESPACE_BY_ID: Record<number, string> = {
   42161: 'arbitrum',
   10: 'optimism',
   56: 'bsc',
+  137: 'polygon',
+  43114: 'avax',
+  100: 'xdai',
 };
 
 /**
@@ -57,6 +60,9 @@ const NATIVE_REF_BY_CHAIN_ID: Record<number, string> = {
   42161: 'coingecko:ethereum',
   10: 'coingecko:ethereum',
   56: 'coingecko:binancecoin',
+  137: 'coingecko:polygon-ecosystem-token',
+  43114: 'coingecko:avalanche-2',
+  100: 'coingecko:xdai',
 };
 
 const coinSchema = z.object({

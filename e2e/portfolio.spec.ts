@@ -48,7 +48,7 @@ test('takes an address from the landing page through to a rendered portfolio', a
 
   const summary = page.getByRole('region', { name: 'Portfolio summary' });
   await expect(summary).toContainText('$5,400.00');
-  await expect(summary).toContainText('5 networks');
+  await expect(summary).toContainText('8 networks');
   // The largest position is the 3,000 ETH holding, not the 5,000 of fake USDC.
   await expect(summary).toContainText('$3,000.00');
   await expect(summary).toContainText('1 flagged as likely spam');
@@ -67,7 +67,7 @@ test('takes an address from the landing page through to a rendered portfolio', a
   const limitations = page.getByRole('region', { name: 'Data limitations' });
   await limitations.getByRole('group').click();
   // Five identical coverage warnings are combined into one line naming the total.
-  await expect(limitations).toContainText('12,346 tokens across');
+  await expect(limitations).toContainText('14,007 tokens across');
   await expect(limitations).toContainText('Ethereum Mainnet: 1 asset looks like spam');
 });
 

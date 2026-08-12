@@ -54,6 +54,9 @@ const PLATFORM_BY_CHAIN_ID: Record<number, string> = {
   42161: 'arbitrum-one',
   10: 'optimistic-ethereum',
   56: 'binance-smart-chain',
+  137: 'polygon-pos',
+  43114: 'avalanche',
+  100: 'xdai',
 };
 
 /**
@@ -74,6 +77,10 @@ const NATIVE_COIN_ID_BY_CHAIN_ID: Record<number, string> = {
   42161: 'ethereum',
   10: 'ethereum',
   56: 'binancecoin',
+  // POL, not MATIC — the 2024 migration renamed the coin id too.
+  137: 'polygon-ecosystem-token',
+  43114: 'avalanche-2',
+  100: 'xdai',
 };
 
 const coinSchema = z.object({

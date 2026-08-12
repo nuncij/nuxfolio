@@ -29,7 +29,21 @@ const CHAINS = [
   { slug: 'arbitrum', chainId: 42161, platform: 'arbitrum-one' },
   { slug: 'optimism', chainId: 10, platform: 'optimistic-ethereum' },
   { slug: 'bsc', chainId: 56, platform: 'binance-smart-chain' },
+  { slug: 'polygon', chainId: 137, platform: 'polygon-pos' },
+  { slug: 'avalanche', chainId: 43114, platform: 'avalanche' },
+  { slug: 'gnosis', chainId: 100, platform: 'xdai' },
 ];
+
+/**
+ * Addresses that must never enter a list, per chain.
+ *
+ * Polygon's 0x…1010 is the native token's precompile alias: `balanceOf` there
+ * answers with the wallet's *native* balance, which the native reading already
+ * reports — keeping it counts every wallet's POL twice (found live, 2026-08-12).
+ */
+const EXCLUDED_BY_CHAIN_ID = {
+  137: new Set(['0x0000000000000000000000000000000000001010']),
+};
 
 const OUTPUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../src/config/tokenlists');
 
@@ -78,6 +92,10 @@ for (const chain of selected) {
     }
 
     if (seen.has(address)) {
+      continue;
+    }
+    if (EXCLUDED_BY_CHAIN_ID[chain.chainId]?.has(address.toLowerCase())) {
+      skipped += 1;
       continue;
     }
     if (!Number.isInteger(token.decimals) || token.decimals < 0 || token.decimals > 36) {

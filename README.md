@@ -3,14 +3,14 @@
 **Your crypto portfolio, clearly explained.**
 
 A read-only crypto portfolio tracker. Enter a public EVM wallet address and see
-what it holds across **Ethereum, Base, Arbitrum, Optimism and BNB Chain**, what
+what it holds across **Ethereum, Base, Arbitrum, Optimism, BNB Chain, Polygon, Avalanche and Gnosis**, what
 it is worth today, and where the concentration sits — with the gaps in that
 picture stated rather than hidden.
 
 There is no wallet connection, no signing path, and no code in this repository
 that could move funds. Nuxfolio never asks for a seed phrase or private key.
 
-![Nuxfolio showing a wallet across five networks](docs/screenshots/portfolio.png)
+![Nuxfolio showing a wallet across eight networks](docs/screenshots/portfolio.png)
 
 <sub>A real wallet (`vitalik.eth`), read with no API key at all. Five networks,
 one total, and the caveats folded into a line that still says how many there are.</sub>
@@ -68,7 +68,7 @@ Open <http://localhost:3000> and paste a public address or a `.eth` name, or
 follow the example wallet link on the landing page.
 
 **No API key is needed.** With no configuration at all, Nuxfolio reads real
-balances from public RPC endpoints on five networks and real prices from a public
+balances from public RPC endpoints on eight networks and real prices from a public
 market-data API. What that costs you is coverage: without an indexer key it
 checks bundled token lists — roughly 12,000 tokens across the five chains — and it says
 so on every response.
@@ -110,7 +110,7 @@ value is ever sent to the browser.
 - Resolves `.eth` names server-side, then redirects to the address URL, so a
   shared link always names the wallet it shows: `/portfolio/vitalik.eth` becomes
   `/portfolio/0xd8dA…6045?ens=vitalik.eth`.
-- Reads native and ERC-20 balances across five networks at once, or one at a
+- Reads native and ERC-20 balances across eight networks at once, or one at a
   time, with a per-network value breakdown.
 - Resolves USD prices, then computes values, a priced subtotal, and each
   holding's share of it — all with decimal arithmetic, never floating point.
@@ -302,8 +302,8 @@ callers share one bucket with a higher ceiling. See ADR-008.
 
 ## Known limitations
 
-1. Without `ALCHEMY_API_KEY`, only bundled-list tokens are found — roughly 12,000 across
-   five networks. Surfaced in the UI on every request.
+1. Without `ALCHEMY_API_KEY`, only bundled-list tokens are found — roughly 14,000 across
+   eight networks. Surfaced in the UI on every request.
 2. The cache and rate limiter are in-process, so they are per-instance. Correct
    for a single node; a shared store is needed before scaling horizontally.
 3. Without `COINGECKO_API_KEY`, prices come from one source with no cross-check.

@@ -6,10 +6,13 @@ import type { WalletAddress } from '@/domain/address';
 
 import { getServerEnv, type ServerEnv } from './env';
 import arbitrumTokenList from './tokenlists/arbitrum.json';
+import avalancheTokenList from './tokenlists/avalanche.json';
 import baseTokenList from './tokenlists/base.json';
 import bscTokenList from './tokenlists/bsc.json';
 import ethereumTokenList from './tokenlists/ethereum.json';
+import gnosisTokenList from './tokenlists/gnosis.json';
 import optimismTokenList from './tokenlists/optimism.json';
+import polygonTokenList from './tokenlists/polygon.json';
 
 /**
  * Chain registry.
@@ -190,6 +193,46 @@ const DEFINITIONS: readonly ChainDefinition[] = [
     explorerUrl: 'https://bscscan.com',
     tokenListJson: bscTokenList,
     configuredRpcUrls: (env) => env.BSC_RPC_URLS,
+  },
+  // The three below were added 2026-08-12 because the owner's wallets measurably
+  // use them; six other candidates probed empty and were left out — every chain in
+  // this registry costs every all-networks load a scan.
+  {
+    chainId: 137,
+    slug: 'polygon',
+    name: 'Polygon PoS',
+    shortName: 'Polygon',
+    // POL since the 2024 migration; CoinGecko prices it as polygon-ecosystem-token.
+    nativeAsset: { symbol: 'POL', name: 'POL', decimals: 18 },
+    defaultRpcUrls: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon-rpc.com'],
+    explorerUrl: 'https://polygonscan.com',
+    tokenListJson: polygonTokenList,
+    configuredRpcUrls: (env) => env.POLYGON_RPC_URLS,
+  },
+  {
+    chainId: 43114,
+    slug: 'avalanche',
+    name: 'Avalanche C-Chain',
+    shortName: 'Avalanche',
+    nativeAsset: { symbol: 'AVAX', name: 'Avalanche', decimals: 18 },
+    defaultRpcUrls: [
+      'https://avalanche-c-chain-rpc.publicnode.com',
+      'https://api.avax.network/ext/bc/C/rpc',
+    ],
+    explorerUrl: 'https://snowtrace.io',
+    tokenListJson: avalancheTokenList,
+    configuredRpcUrls: (env) => env.AVALANCHE_RPC_URLS,
+  },
+  {
+    chainId: 100,
+    slug: 'gnosis',
+    name: 'Gnosis',
+    shortName: 'Gnosis',
+    nativeAsset: { symbol: 'XDAI', name: 'xDAI', decimals: 18 },
+    defaultRpcUrls: ['https://gnosis-rpc.publicnode.com', 'https://rpc.gnosischain.com'],
+    explorerUrl: 'https://gnosisscan.io',
+    tokenListJson: gnosisTokenList,
+    configuredRpcUrls: (env) => env.GNOSIS_RPC_URLS,
   },
 ];
 

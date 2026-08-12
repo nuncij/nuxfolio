@@ -61,10 +61,11 @@ green. 26 ADRs, 12 independent review rounds.
 
 **Working today, with no API key and no configuration:**
 
-- Enter any public EVM address → portfolio across **Ethereum, Base, Arbitrum
-  One, OP Mainnet and BNB Smart Chain**, or any single network.
-- 12,346 bundled tokens checked via Multicall3 (500 calls/batch, 4 in flight);
-  a full five-chain scan takes ~2 s cold, ~0 s cached (60 s TTL).
+- Enter any public EVM address → portfolio across **eight EVM networks** (Ethereum, Base, Arbitrum One, OP
+  Mainnet, BNB Smart Chain — and, since 2026-08-12, Polygon PoS, Avalanche
+  C-Chain and Gnosis), or any single network.
+- 14,007 bundled tokens checked via Multicall3 (500 calls/batch, 4 in flight);
+  a full eight-chain scan takes ~2 s cold, ~0 s cached (60 s TTL).
 - Prices from DefiLlama with per-quote confidence and staleness flags
   (`ok` / `low-confidence` / `stale` / `unknown-age`) — flagged quotes are kept
   and labelled, never silently dropped.
@@ -291,7 +292,11 @@ new registry entry: different address formats, providers, and models.
 
 - **More EVM chains first** (Polygon PoS, Avalanche C-Chain, zkSync, Linea…):
   each is one registry entry + `pnpm tokens:generate` — S each, do
-  opportunistically whenever asked.
+  opportunistically whenever asked. _Polygon, Avalanche and Gnosis landed
+  2026-08-12 — chosen by probing the owner's wallets across ten candidates and
+  adding the three with measurable presence, each with its Aave v3 market
+  verified on-chain. zkSync, Linea, Scroll, Mantle, Blast and Celo probed empty
+  and wait until they are not._
 - **Bitcoin**: address-format module (bech32/base58), mempool.space public API,
   UTXO model; no tokens, no Multicall — a parallel, simpler provider. L.
 - **Solana**: SPL tokens via public RPC `getTokenAccountsByOwner`; new address

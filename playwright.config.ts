@@ -18,8 +18,14 @@ import { defineConfig, devices } from '@playwright/test';
  * Not 3000. A developer's own `pnpm dev` usually owns that port, and a suite
  * that quietly attached to it would be testing whatever code that server has
  * loaded rather than a fresh build of the working tree.
+ *
+ * Not 3100 either, since 2026-08-12: an unrelated app on this machine claimed
+ * it, `reuseExistingServer` attached the suite to it, and every test failed
+ * against a server that had never heard of this project. The env override is
+ * the escape hatch for the day this number collides too.
  */
-const PORT = 3100;
+export const E2E_PORT = Number(process.env.NUXFOLIO_E2E_PORT ?? 3153);
+const PORT = E2E_PORT;
 /**
  * `localhost`, not `127.0.0.1`. This mattered acutely against the dev server,
  * which treats an unlisted numeric host as cross-origin and serves a page that

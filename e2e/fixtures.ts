@@ -1,5 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 
+import { E2E_PORT } from '../playwright.config';
+
 import {
   aggregatePortfolioSchema,
   ALL_CHAINS,
@@ -54,6 +56,14 @@ const CHAINS = {
   arbitrum: { chainId: 42161, chainName: 'Arbitrum One', shortName: 'Arbitrum', listSize: 1037 },
   optimism: { chainId: 10, chainName: 'OP Mainnet', shortName: 'Optimism', listSize: 247 },
   bsc: { chainId: 56, chainName: 'BNB Smart Chain', shortName: 'BNB Chain', listSize: 3427 },
+  polygon: { chainId: 137, chainName: 'Polygon PoS', shortName: 'Polygon', listSize: 857 },
+  avalanche: {
+    chainId: 43114,
+    chainName: 'Avalanche C-Chain',
+    shortName: 'Avalanche',
+    listSize: 693,
+  },
+  gnosis: { chainId: 100, chainName: 'Gnosis', shortName: 'Gnosis', listSize: 111 },
 } as const;
 
 /** Registry order, which is the order the aggregate view lists networks in. */
@@ -63,6 +73,9 @@ const CHAIN_ORDER = [
   CHAINS.arbitrum,
   CHAINS.optimism,
   CHAINS.bsc,
+  CHAINS.polygon,
+  CHAINS.avalanche,
+  CHAINS.gnosis,
 ] as const;
 
 type ChainIdentity = (typeof CHAIN_ORDER)[number];
@@ -512,12 +525,29 @@ export type PortfolioApiMock = {
  */
 export async function mockPortfolioApi(
   page: Page,
-  plan: PortfolioPlan,
+  basePlan: PortfolioPlan,
   options: {
     /** Fail every request with this until {@link PortfolioApiMock.stopFailing}. */
     readonly failWith?: ApiFailure;
   } = {},
 ): Promise<PortfolioApiMock> {
+  // A registered chain the plan does not speak about answers empty rather than
+  // failing: the registry grew to eight chains (2026-08-12) and most scenarios
+  // are written against the original five, whose asserted totals an empty chain
+  // cannot disturb. A chain outside the registry still fails loudly below —
+  // that tripwire is about the app inventing a chain, not the registry growing.
+  const planned = new Set(basePlan.chains.map((entry) => entry.identity.chainId));
+  const plan: PortfolioPlan = {
+    ...basePlan,
+    chains: [
+      ...basePlan.chains,
+      ...CHAIN_ORDER.filter((identity) => !planned.has(identity.chainId)).map((identity) => ({
+        identity,
+        outcome: { portfolio: emptyPortfolio(identity) } as ChainOutcome,
+      })),
+    ],
+  };
+
   let failure = options.failWith ?? null;
   let requestCount = 0;
   /** Extra addresses a bundle test registered, each answering or failing. */
@@ -640,7 +670,10 @@ export async function mockPortfolioApi(
 }
 
 /** The dev server this suite talks to; anything else is a defect. */
-const BASE_ORIGIN = `http://localhost:${process.env.PORT ?? '3100'}`;
+// Imported from the config rather than re-derived: the suite once carried the
+// port in two places, the config moved and this one did not, and every request
+// was aborted as cross-origin (2026-08-12).
+const BASE_ORIGIN = `http://localhost:${E2E_PORT}`;
 
 /**
  * Anything the browser sends to a host other than the dev server is a defect in

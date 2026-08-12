@@ -149,6 +149,41 @@ export const AAVE_MARKETS: readonly AaveMarket[] = [
     baseCurrencyDecimals: USD_8,
     verifiedOn: '2026-08-08',
   },
+  // The three below were verified the same way as the rest: the pool answered
+  // ADDRESSES_PROVIDER(), the provider's oracle reported USD at 1e8, and the
+  // detail provider answered getReservesList — or did not, and is then absent.
+  {
+    marketId: '137:polygon',
+    addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
+    detail: {
+      // The same contract Base uses, and the only one of three known deployments
+      // that answered on Polygon.
+      uiPoolDataProvider: '0x68100bD5345eA474D93577127C11F39FF8463e93',
+    },
+    name: 'Aave v3',
+    chainId: 137,
+    poolAddress: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+    baseCurrencyDecimals: USD_8,
+    verifiedOn: '2026-08-12',
+  },
+  {
+    marketId: '43114:avalanche',
+    addressesProvider: '0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb',
+    name: 'Aave v3',
+    chainId: 43114,
+    poolAddress: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+    baseCurrencyDecimals: USD_8,
+    verifiedOn: '2026-08-12',
+  },
+  {
+    marketId: '100:gnosis',
+    addressesProvider: '0x36616cf17557639614c1cdDb356b1B83fc0B2132',
+    name: 'Aave v3',
+    chainId: 100,
+    poolAddress: '0xb50201558B00496A145fE76f7424749556E326D8',
+    baseCurrencyDecimals: USD_8,
+    verifiedOn: '2026-08-12',
+  },
 ];
 
 /** Markets whose per-token detail can be read. A subset of {@link AAVE_MARKETS}. */

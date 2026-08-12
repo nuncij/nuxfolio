@@ -47,6 +47,9 @@ const envSchema = z.object({
   ARBITRUM_RPC_URLS: csvList.optional(),
   OPTIMISM_RPC_URLS: csvList.optional(),
   BSC_RPC_URLS: csvList.optional(),
+  POLYGON_RPC_URLS: csvList.optional(),
+  AVALANCHE_RPC_URLS: csvList.optional(),
+  GNOSIS_RPC_URLS: csvList.optional(),
 
   /**
    * Age at which a bundled token list is called out as possibly missing
@@ -152,5 +155,8 @@ export function getSecretValues(env: ServerEnv = getServerEnv()): string[] {
     ...(env.ARBITRUM_RPC_URLS ?? []),
     ...(env.OPTIMISM_RPC_URLS ?? []),
     ...(env.BSC_RPC_URLS ?? []),
+    ...(env.POLYGON_RPC_URLS ?? []),
+    ...(env.AVALANCHE_RPC_URLS ?? []),
+    ...(env.GNOSIS_RPC_URLS ?? []),
   ].filter((value): value is string => typeof value === 'string');
 }
