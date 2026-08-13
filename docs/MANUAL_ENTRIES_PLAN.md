@@ -1,6 +1,10 @@
 # Manual entries — the balances no chain can confirm
 
-Draft 2026-08-12, revised the same day after review round 16. This is the "Manual
+Draft 2026-08-12, revised the same day after review round 16. **Implemented 2026-08-13**
+(round 17: no blockers, two honesty gaps adopted), **deployed and verified live the same
+day**: a drill entry was created through the locked route, priced at the real market,
+recorded as the pseudo-row by a snapshot run, deleted, and the rerun removed the day's
+row — every §7 criterion exercised against production. This is the "Manual
 entries" item from milestone 6 (`DEV_PLAN.md`), unblocked by M4's store. Written before
 any code, per the process that has caught a blocker at plan stage in rounds 6, 7, 8 and
 14 — and did again here: the first draft priced entries through "the existing DefiLlama

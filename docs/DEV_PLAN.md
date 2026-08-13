@@ -303,7 +303,9 @@ new registry entry: different address formats, providers, and models.
   validation; token list from Jupiter/CoinGecko. L–XL.
 - **Manual entries** (CeFi balances, cold storage): needs persistence (M4) and
   a form UX; entries are user-asserted and must be visually distinct from
-  chain-verified data — the honesty rule again. M.
+  chain-verified data — the honesty rule again. M. _Shipped 2026-08-13:
+  `/manual`, key-gated writes, priced by a new direct-by-ref DefiLlama seam,
+  daily pseudo-row in the history store. `MANUAL_ENTRIES_PLAN.md`, rounds 16-17._
 
 ### Milestone 7 — AI analysis (kickoff Phase 5)
 
