@@ -326,7 +326,14 @@ function Entries({
                 </td>
                 <td className="numeric px-4 py-3 text-right text-ink">{entry.quantity}</td>
                 <td className="numeric px-4 py-3 text-right text-ink-muted">
-                  {entry.priceUsd === null ? '—' : money(entry.priceUsd)}
+                  {entry.priceUsd === null ? (
+                    '—'
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5">
+                      {money(entry.priceUsd)}
+                      <QualityFlag quality={entry.priceQuality} />
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {unlocked ? (
@@ -367,6 +374,30 @@ function Entries({
         </table>
       </div>
     </section>
+  );
+}
+
+/**
+ * The same three flags every priced row in the product carries — dropped by the
+ * first version of this page, which made a stale or single-source quote look
+ * normal inside the reported total (round 16 follow-up).
+ */
+function QualityFlag({ quality }: { quality: ValuedManualEntry['priceQuality'] }) {
+  if (quality === null || quality === 'ok') {
+    return null;
+  }
+  const label =
+    quality === 'stale'
+      ? 'Price may be out of date'
+      : quality === 'unknown-age'
+        ? 'Price age could not be confirmed'
+        : 'Low-confidence price';
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className="inline-block size-1.5 rounded-full bg-caution"
+    />
   );
 }
 

@@ -857,3 +857,24 @@ The pseudo-row cannot leak into any wallet's history series (exact-address selec
 primary key upserts `('manual', day, 0)` safely, the backup covers both tables, and the
 localStorage-key write gate is adequate for a single-owner tailnet — each checked
 against the code, not asserted.
+
+## Round 17 — manual entries, after implementation
+
+Codex reviewed commit `1e3ca9d` against the round-16 plan, focused on the new write
+surface. **No blockers**: the key gate covers every mutating path with no bypass and no
+useful timing signal; SQL parameters, URL encoding, React escaping, the localStorage key
+handling, the Decimal arithmetic and the pseudo-row semantics (same-day rewrite,
+delete-on-empty, wallet-list independence) all verified sound. Nothing was named
+over-engineered.
+
+Two findings, both honesty gaps rather than defects, both adopted the same hour:
+
+- The page dropped the computed `priceQuality`, so a stale or single-source quote looked
+  normal inside the reported total. The same three flags every priced row in the product
+  carries now render here too.
+- The landing page still said "reads public data only" — the plan's copy change (round 16) had reached the footer but not this sentence. It now says what is true: public
+  data, plus balances the owner reports, always marked as theirs.
+
+The pattern of the round: the code held; the sentences about the code were where the
+gaps were. Both reviews of this feature found their most lasting issues in prose the
+product shows or claims — which is consistent with everything this log records.

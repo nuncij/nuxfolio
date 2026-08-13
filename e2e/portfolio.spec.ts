@@ -775,7 +775,7 @@ test.describe('narrow viewport', () => {
   });
 });
 
-test('marks every reported balance as the owner\'s claim, priced or not', async ({ page }) => {
+test("marks every reported balance as the owner's claim, priced or not", async ({ page }) => {
   // The one page whose quantities Nuxfolio cannot verify. What this asserts is
   // the honesty split: each row says it was reported and when, an unpriceable
   // entry shows "No price" rather than zero, and the total names itself as

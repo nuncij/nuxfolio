@@ -18,8 +18,8 @@ export default function HomePage() {
       </h1>
       <p className="mt-4 text-base text-ink-muted">
         Enter a public wallet address or a .eth name to see what it holds, what it is worth today,
-        and where the concentration sits. Nuxfolio reads public data only — there is nothing to
-        connect and nothing to sign.
+        and where the concentration sits. Nuxfolio reads public data, plus any balances you report
+        yourself — there is nothing to connect and nothing to sign.
       </p>
 
       <div className="mt-8">
