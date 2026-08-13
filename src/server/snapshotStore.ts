@@ -39,6 +39,15 @@ const SCHEMA = `
     coverage              TEXT    NOT NULL,
     PRIMARY KEY (address, snapshot_day, chain_id)
   ) STRICT;
+
+  CREATE TABLE IF NOT EXISTS manual_entry (
+    id          INTEGER PRIMARY KEY,
+    label       TEXT NOT NULL,
+    symbol      TEXT NOT NULL,
+    price_ref   TEXT,
+    quantity    TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  ) STRICT;
 `;
 
 /** One chain's figures at one moment. Decimal strings, exactly as the wire carries them. */
@@ -66,11 +75,41 @@ export type Snapshot = {
   readonly coverage: string;
 };
 
+/**
+ * One balance the owner asserted by hand. Nuxfolio prices it; it never claims
+ * to have verified the quantity or where it is held. See
+ * `docs/MANUAL_ENTRIES_PLAN.md`.
+ */
+export type ManualEntry = {
+  readonly id: number;
+  /** Where it is: "Binance", "Ledger in the drawer". */
+  readonly label: string;
+  /** What a person calls it: "BTC". */
+  readonly symbol: string;
+  /** DefiLlama passthrough ref (`coingecko:bitcoin`), or null = unpriceable. */
+  readonly priceRef: string | null;
+  /** Decimal string, ADR-003 as everywhere. */
+  readonly quantity: string;
+  /** When the owner last asserted this — shown in the UI, the one honesty field. */
+  readonly updatedAt: string;
+};
+
 export type SnapshotStore = {
   /** Writes one day's rows for one wallet, atomically. */
   record: (snapshots: readonly Snapshot[]) => void;
   /** Every snapshot for one address, oldest first. */
   history: (address: string) => readonly Snapshot[];
+  /**
+   * Removes one day's row for one identity. Exists for exactly one case: the
+   * manual pseudo-row of a day on which the last entry was deleted, which must
+   * not stand as if it were still true (round 16).
+   */
+  deleteDay: (address: string, snapshotDay: string, chainId: number) => void;
+  listManualEntries: () => readonly ManualEntry[];
+  /** Insert (id null) or overwrite (id set). Returns the row's id, or null when the id does not exist. */
+  upsertManualEntry: (entry: Omit<ManualEntry, 'id'> & { id: number | null }) => number | null;
+  /** True when a row was actually removed. */
+  deleteManualEntry: (id: number) => boolean;
   close: () => void;
 };
 
@@ -116,6 +155,21 @@ export function openSnapshotStore(directory: string): SnapshotStore {
     ORDER BY snapshot_day ASC, chain_id ASC
   `);
 
+  const deleteDayStatement = db.prepare(
+    'DELETE FROM portfolio_snapshot WHERE address = ? AND snapshot_day = ? AND chain_id = ?',
+  );
+
+  const selectEntries = db.prepare(
+    'SELECT id, label, symbol, price_ref, quantity, updated_at FROM manual_entry ORDER BY id ASC',
+  );
+  const insertEntry = db.prepare(
+    'INSERT INTO manual_entry (label, symbol, price_ref, quantity, updated_at) VALUES (?, ?, ?, ?, ?)',
+  );
+  const updateEntry = db.prepare(
+    'UPDATE manual_entry SET label = ?, symbol = ?, price_ref = ?, quantity = ?, updated_at = ? WHERE id = ?',
+  );
+  const deleteEntry = db.prepare('DELETE FROM manual_entry WHERE id = ?');
+
   return {
     record(snapshots) {
       if (snapshots.length === 0) {
@@ -158,6 +212,49 @@ export function openSnapshotStore(directory: string): SnapshotStore {
         pricedCount: Number(row.priced_count),
         coverage: String(row.coverage),
       }));
+    },
+
+    deleteDay(address, snapshotDay, chainId) {
+      deleteDayStatement.run(address.toLowerCase(), snapshotDay, chainId);
+    },
+
+    listManualEntries() {
+      return selectEntries.all().map((row): ManualEntry => ({
+        id: Number(row.id),
+        label: String(row.label),
+        symbol: String(row.symbol),
+        priceRef: row.price_ref === null ? null : String(row.price_ref),
+        quantity: String(row.quantity),
+        updatedAt: String(row.updated_at),
+      }));
+    },
+
+    upsertManualEntry(entry) {
+      if (entry.id === null) {
+        const result = insertEntry.run(
+          entry.label,
+          entry.symbol,
+          entry.priceRef,
+          entry.quantity,
+          entry.updatedAt,
+        );
+        return Number(result.lastInsertRowid);
+      }
+      const result = updateEntry.run(
+        entry.label,
+        entry.symbol,
+        entry.priceRef,
+        entry.quantity,
+        entry.updatedAt,
+        entry.id,
+      );
+      // An id that matched nothing is the caller's error to hear about, not a
+      // quiet insert under a different identity.
+      return result.changes > 0 ? entry.id : null;
+    },
+
+    deleteManualEntry(id) {
+      return deleteEntry.run(id).changes > 0;
     },
 
     close() {

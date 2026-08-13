@@ -579,6 +579,42 @@ export async function mockPortfolioApi(
       return;
     }
 
+    if (url.pathname === '/api/manual' && route.request().method() === 'GET') {
+      // Two entries, one deliberately unpriced: the page must render "No price"
+      // as a state, never as zero. Writes stay contract-tested at the route.
+      await fulfillJson(route, 200, {
+        entries: [
+          {
+            id: 1,
+            label: 'Binance',
+            symbol: 'BTC',
+            priceRef: 'coingecko:bitcoin',
+            quantity: '0.5',
+            updatedAt: '2026-08-13T08:00:00.000Z',
+            priceUsd: '60000',
+            valueUsd: '30000.00000000',
+            priceQuality: 'ok',
+            priceUpdatedAt: '2026-08-13T08:59:00.000Z',
+          },
+          {
+            id: 2,
+            label: 'Ledger in the drawer',
+            symbol: 'MYSTERY',
+            priceRef: null,
+            quantity: '12',
+            updatedAt: '2026-08-01T08:00:00.000Z',
+            priceUsd: null,
+            valueUsd: null,
+            priceQuality: null,
+            priceUpdatedAt: null,
+          },
+        ],
+        totalValueUsd: '30000.00000000',
+        fxRate: FX_RATE,
+      });
+      return;
+    }
+
     if (!url.pathname.startsWith('/api/portfolio')) {
       // Loud on purpose: an unmocked endpoint means this suite no longer covers
       // what the app actually calls.

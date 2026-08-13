@@ -95,8 +95,9 @@ function SiteFooter() {
   return (
     <footer className="border-t border-line py-6 text-xs text-ink-subtle">
       <p>
-        Nuxfolio reads public blockchain data and public market prices. It never asks for a seed
-        phrase or private key, cannot move funds, and shows estimates rather than advice.
+        Nuxfolio reads public blockchain data and public market prices — plus balances you report
+        yourself, always marked as yours. It never asks for a seed phrase or private key, cannot
+        move funds, and shows estimates rather than advice.
       </p>
     </footer>
   );

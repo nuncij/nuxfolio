@@ -31,6 +31,10 @@ export default function HomePage() {
         <Link href={`/portfolio/${EXAMPLE_ADDRESS}`} className="text-accent hover:underline">
           Try a public example wallet
         </Link>
+        . Balances no chain can show — exchange accounts, cold storage — live under{' '}
+        <Link href="/manual" className="text-accent hover:underline">
+          reported balances
+        </Link>
         .
       </p>
 

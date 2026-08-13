@@ -177,3 +177,56 @@ describe('history', () => {
     expect(store().history('0x0000000000000000000000000000000000000001')).toEqual([]);
   });
 });
+
+describe('manual entries', () => {
+  const entry = {
+    id: null,
+    label: 'Binance',
+    symbol: 'BTC',
+    priceRef: 'coingecko:bitcoin',
+    quantity: '0.5',
+    updatedAt: '2026-08-13T09:00:00.000Z',
+  };
+
+  it('inserts, lists, updates and deletes', () => {
+    const db = store();
+
+    const id = db.upsertManualEntry(entry);
+    expect(id).not.toBeNull();
+    expect(db.listManualEntries()).toHaveLength(1);
+    expect(db.listManualEntries()[0]).toMatchObject({ label: 'Binance', quantity: '0.5' });
+
+    const updated = db.upsertManualEntry({ ...entry, id, quantity: '0.75' });
+    expect(updated).toBe(id);
+    expect(db.listManualEntries()[0]?.quantity).toBe('0.75');
+
+    expect(db.deleteManualEntry(id!)).toBe(true);
+    expect(db.listManualEntries()).toEqual([]);
+  });
+
+  it('refuses to update an id that does not exist, rather than quietly inserting', () => {
+    const db = store();
+    expect(db.upsertManualEntry({ ...entry, id: 999 })).toBeNull();
+    expect(db.listManualEntries()).toEqual([]);
+  });
+
+  it('keeps the quantity byte-identical, never a float', () => {
+    const db = store();
+    const precise = '0.123456789012345678901234567890';
+    db.upsertManualEntry({ ...entry, quantity: precise });
+    expect(db.listManualEntries()[0]?.quantity).toBe(precise);
+  });
+
+  it('deletes exactly one day for one identity', () => {
+    const db = store();
+    db.record([snapshot({ capturedAt: '2026-08-12T09:00:00.000Z' })]);
+    db.record([
+      { ...snapshot({ capturedAt: '2026-08-12T09:00:00.000Z' }), address: 'manual', chainId: 0 },
+    ]);
+
+    db.deleteDay('manual', '2026-08-12', 0);
+
+    expect(db.history('manual')).toEqual([]);
+    expect(db.history(snapshot().address)).toHaveLength(1);
+  });
+});

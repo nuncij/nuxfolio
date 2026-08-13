@@ -1,11 +1,16 @@
 import 'server-only';
 
+import type { ServerEnv } from '@/config/env';
 import type { WalletAddress } from '@/domain/address';
+import { valueManualEntries } from '@/domain/manual';
 import { computeNetOfDebt } from '@/domain/netOfDebt';
 import type { AggregatePortfolio } from '@/domain/portfolio';
+import { fetchManualRefPrices } from '@/providers/prices/defiLlama';
+import type { PriceQuote, ProviderContext } from '@/providers/types';
 
+import { Deadline } from './deadline';
 import type { Logger } from './logger';
-import type { Snapshot, SnapshotStore } from './snapshotStore';
+import { utcDay, type Snapshot, type SnapshotStore } from './snapshotStore';
 
 /**
  * Taking one day's snapshot of the tracked wallets.
@@ -104,4 +109,79 @@ function toSnapshots(aggregate: AggregatePortfolio, capturedAt: string): readonl
       coverage: chain.coverage,
     };
   });
+}
+
+/** The identity the manual pseudo-row is stored under. Not a wallet address on
+ * purpose: it fails address validation everywhere a wallet is expected, so it
+ * cannot leak into any wallet's history (verified in review round 16). */
+export const MANUAL_SNAPSHOT_ADDRESS = 'manual';
+export const MANUAL_SNAPSHOT_CHAIN_ID = 0;
+
+/**
+ * One row per day for the owner's manual entries, written after the wallet
+ * rows and independent of them — an empty tracked list must not skip this.
+ *
+ * The shape was fixed at plan time because history cannot be backfilled:
+ * the net equals the total (a reported balance owes Aave nothing, and round 15
+ * established that a debt-free total is its net), the counts are entry counts,
+ * and coverage says 'manual'. When the last entry is deleted, the same day's
+ * row is removed rather than left standing as if it were still true.
+ */
+export async function captureManualSnapshot(input: {
+  store: SnapshotStore;
+  env: ServerEnv;
+  logger: Logger;
+  now: () => Date;
+  /** Seam for tests; defaults to the DefiLlama by-ref lookup. */
+  fetchQuotes?: (
+    refs: readonly string[],
+    context: ProviderContext,
+  ) => Promise<ReadonlyMap<string, PriceQuote>>;
+}): Promise<'recorded' | 'none'> {
+  const { store, env, logger, now } = input;
+
+  const entries = store.listManualEntries();
+  const capturedAt = now().toISOString();
+  const day = utcDay(capturedAt);
+
+  if (entries.length === 0) {
+    store.deleteDay(MANUAL_SNAPSHOT_ADDRESS, day, MANUAL_SNAPSHOT_CHAIN_ID);
+    return 'none';
+  }
+
+  const fetchQuotes =
+    input.fetchQuotes ?? ((refs, context) => fetchManualRefPrices({ refs, context }));
+  const refs = entries.map((entry) => entry.priceRef).filter((ref): ref is string => ref !== null);
+  const quotes = await fetchQuotes(refs, {
+    deadline: new Deadline(env.REQUEST_DEADLINE_MS),
+    fetch: globalThis.fetch,
+    logger,
+    maxAssets: env.MAX_ASSETS_PER_PORTFOLIO,
+    tokenListMaxAgeDays: env.TOKEN_LIST_MAX_AGE_DAYS,
+  });
+
+  const valued = valueManualEntries(entries, quotes, {
+    now: now().getTime(),
+    confidenceMin: env.PRICE_CONFIDENCE_MIN,
+    maxAgeSeconds: env.PRICE_MAX_AGE_SECONDS,
+  });
+
+  store.record([
+    {
+      address: MANUAL_SNAPSHOT_ADDRESS,
+      chainId: MANUAL_SNAPSHOT_CHAIN_ID,
+      capturedAt,
+      totalValueUsd: valued.totalValueUsd,
+      netOfAaveDebtUsd: valued.totalValueUsd,
+      assetCount: entries.length,
+      pricedCount: valued.pricedCount,
+      coverage: 'manual',
+    },
+  ]);
+
+  logger.info('snapshot.manual_recorded', {
+    entries: entries.length,
+    priced: valued.pricedCount,
+  });
+  return 'recorded';
 }

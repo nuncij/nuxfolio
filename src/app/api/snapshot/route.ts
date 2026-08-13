@@ -1,9 +1,8 @@
-import { timingSafeEqual } from 'node:crypto';
-
 import { getServerEnv } from '@/config/env';
 import { dataDir, trackedWallets } from '@/config/history';
 import { getAggregatePortfolio, getLogger } from '@/server/portfolioService';
-import { captureSnapshots } from '@/server/snapshotJob';
+import { presentedKeyMatches } from '@/server/secretKey';
+import { captureManualSnapshot, captureSnapshots } from '@/server/snapshotJob';
 import { openSnapshotStore } from '@/server/snapshotStore';
 
 /**
@@ -43,9 +42,11 @@ export async function POST(request: Request): Promise<Response> {
 
   if (wallets.length === 0) {
     logger.info('snapshot.nothing_tracked', {});
-    return Response.json({ captured: 0, skipped: 0 });
   }
 
+  // The store opens even with nothing tracked: the manual pseudo-row is
+  // independent of the wallet list (round 16 — the old early return would have
+  // silently skipped it).
   const store = openSnapshotStore(dataDir());
 
   try {
@@ -69,21 +70,14 @@ export async function POST(request: Request): Promise<Response> {
       },
     });
 
-    return Response.json({ captured: outcome.captured, skipped: outcome.skipped.length });
+    const manual = await captureManualSnapshot({ store, env, logger, now: () => new Date() });
+
+    return Response.json({
+      captured: outcome.captured,
+      skipped: outcome.skipped.length,
+      manual,
+    });
   } finally {
     store.close();
   }
-}
-
-/**
- * Constant-time comparison, so the response time says nothing about how much of the key
- * was right. Lengths are compared first because `timingSafeEqual` throws on a mismatch.
- */
-function presentedKeyMatches(presented: string | null, expected: string): boolean {
-  if (presented === null) {
-    return false;
-  }
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }

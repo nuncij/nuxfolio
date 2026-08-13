@@ -4,9 +4,11 @@ import type { WalletAddress } from '@/domain/address';
 import type { AggregatePortfolio, Portfolio } from '@/domain/portfolio';
 import { TEST_ADDRESS } from '@/test/helpers';
 
-import { captureSnapshots } from './snapshotJob';
+import { captureManualSnapshot, captureSnapshots } from './snapshotJob';
+import { silentLogger } from '@/test/helpers';
 import { openSnapshotStore } from './snapshotStore';
 
+const silent = silentLogger();
 const AT = '2026-08-10T09:00:00.000Z';
 const now = () => new Date(AT);
 
@@ -186,5 +188,97 @@ describe('captureSnapshots', () => {
     await run(async () => aggregate(), store);
 
     expect(store.history(TEST_ADDRESS)).toHaveLength(2); // two chains, one day
+  });
+});
+
+describe('captureManualSnapshot', () => {
+  const env = {
+    REQUEST_DEADLINE_MS: 10_000,
+    MAX_ASSETS_PER_PORTFOLIO: 400,
+    TOKEN_LIST_MAX_AGE_DAYS: 60,
+    PRICE_CONFIDENCE_MIN: 0.7,
+    PRICE_MAX_AGE_SECONDS: 3_600,
+  } as Parameters<typeof captureManualSnapshot>[0]['env'];
+
+  const quotes = async () =>
+    new Map([['coingecko:bitcoin', { priceUsd: '60000', updatedAt: AT, confidence: 0.99 }]]);
+
+  function manualStore() {
+    const store = openSnapshotStore(':memory:');
+    store.upsertManualEntry({
+      id: null,
+      label: 'Binance',
+      symbol: 'BTC',
+      priceRef: 'coingecko:bitcoin',
+      quantity: '0.5',
+      updatedAt: AT,
+    });
+    return store;
+  }
+
+  it('records the pseudo-row with the shape fixed at plan time', async () => {
+    const store = manualStore();
+
+    const outcome = await captureManualSnapshot({
+      store,
+      env,
+      logger: silent,
+      now,
+      fetchQuotes: quotes,
+    });
+
+    expect(outcome).toBe('recorded');
+    expect(store.history('manual')[0]).toMatchObject({
+      chainId: 0,
+      totalValueUsd: '30000.00000000',
+      // A reported balance owes Aave nothing: its net IS its total (round 15).
+      netOfAaveDebtUsd: '30000.00000000',
+      assetCount: 1,
+      pricedCount: 1,
+      coverage: 'manual',
+    });
+  });
+
+  it('rewrites the same day rather than duplicating it', async () => {
+    const store = manualStore();
+    const input = { store, env, logger: silent, now, fetchQuotes: quotes };
+
+    await captureManualSnapshot(input);
+    await captureManualSnapshot(input);
+
+    expect(store.history('manual')).toHaveLength(1);
+  });
+
+  it('removes the day when the last entry was deleted, not leaving yesterday standing', async () => {
+    const store = manualStore();
+    const input = { store, env, logger: silent, now, fetchQuotes: quotes };
+    await captureManualSnapshot(input);
+
+    for (const entry of store.listManualEntries()) {
+      store.deleteManualEntry(entry.id);
+    }
+    const outcome = await captureManualSnapshot(input);
+
+    expect(outcome).toBe('none');
+    expect(store.history('manual')).toEqual([]);
+  });
+
+  it('stores an honest null when nothing could be priced', async () => {
+    const store = manualStore();
+
+    await captureManualSnapshot({
+      store,
+      env,
+      logger: silent,
+      now,
+      fetchQuotes: async () => new Map(),
+    });
+
+    expect(store.history('manual')[0]).toMatchObject({
+      totalValueUsd: null,
+      netOfAaveDebtUsd: null,
+      assetCount: 1,
+      pricedCount: 0,
+    });
   });
 });

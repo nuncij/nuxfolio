@@ -11,7 +11,7 @@ import {
 
 import { priceRefKey, type PriceRef } from '../types';
 
-import { createDefiLlamaPriceProvider } from './defiLlama';
+import { createDefiLlamaPriceProvider, fetchManualRefPrices } from './defiLlama';
 
 const NATIVE_REF: PriceRef = { chainId: 1, contractAddress: null };
 const USDC_REF: PriceRef = { chainId: 1, contractAddress: USDC };
@@ -249,5 +249,54 @@ describe('defillama price provider', () => {
 
     expect(lookup.quotes.size).toBe(0);
     expect(lookup.warnings.map((warning) => warning.code)).toContain('prices.partial');
+  });
+});
+
+describe('fetchManualRefPrices', () => {
+  it('prices raw passthrough refs and keys them lowercase', async () => {
+    const { fetchImpl, calls } = createFetchStub(() =>
+      jsonResponse({
+        coins: {
+          'coingecko:bitcoin': { price: 60000, timestamp: TIMESTAMP, confidence: 0.99 },
+        },
+      }),
+    );
+
+    const quotes = await fetchManualRefPrices({
+      refs: ['coingecko:bitcoin'],
+      context: createTestContext(fetchImpl),
+    });
+
+    expect(calls[0]?.url).toContain('coingecko%3Abitcoin');
+    expect(quotes.get('coingecko:bitcoin')).toMatchObject({ priceUsd: '60000' });
+  });
+
+  it('never sends a ref outside the passthrough namespace', async () => {
+    const { fetchImpl, calls } = createFetchStub(() => jsonResponse({ coins: {} }));
+
+    const quotes = await fetchManualRefPrices({
+      refs: ['ethereum:0xdead', 'coingecko:UPPER', 'file:///etc/passwd'],
+      context: createTestContext(fetchImpl),
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(quotes.size).toBe(0);
+  });
+
+  it('answers what it can when a batch fails, and a zero price is no price', async () => {
+    const { fetchImpl } = createFetchStub(() =>
+      jsonResponse({
+        coins: {
+          'coingecko:bitcoin': { price: 0, timestamp: TIMESTAMP },
+        },
+      }),
+    );
+
+    const quotes = await fetchManualRefPrices({
+      refs: ['coingecko:bitcoin'],
+      context: createTestContext(fetchImpl),
+    });
+
+    expect(quotes.size).toBe(0);
   });
 });

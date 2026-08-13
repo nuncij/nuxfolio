@@ -774,3 +774,25 @@ test.describe('narrow viewport', () => {
     expect(widths.bodyScroll).toBeLessThanOrEqual(widths.bodyClient);
   });
 });
+
+test('marks every reported balance as the owner\'s claim, priced or not', async ({ page }) => {
+  // The one page whose quantities Nuxfolio cannot verify. What this asserts is
+  // the honesty split: each row says it was reported and when, an unpriceable
+  // entry shows "No price" rather than zero, and the total names itself as
+  // reported — never blended into anything chain-verified.
+  await mockPortfolioApi(page, allNetworksPlan());
+
+  await page.goto('/manual');
+
+  const reported = page.getByRole('region', { name: 'Reported balances' });
+  await expect(reported.getByText('reported by you · 2026-08-13')).toBeVisible();
+  await expect(reported.getByText('reported by you · 2026-08-01')).toBeVisible();
+  await expect(reported).toContainText('$30,000.00');
+  await expect(reported).toContainText('No price');
+  await expect(reported).toContainText('Reported total');
+  await expect(reported).toContainText('Never mixed into any chain-verified total');
+
+  // Without the key, the page is read-only: no form, no delete buttons.
+  await expect(page.getByRole('button', { name: 'Unlock editing' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Delete' })).toHaveCount(0);
+});

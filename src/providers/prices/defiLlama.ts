@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { MANUAL_PRICE_REF_PATTERN } from '@/domain/manual';
 import type { PortfolioWarning } from '@/domain/portfolio';
 import { numberToDecimalString } from '@/domain/money';
 import { chunk } from '@/server/concurrency';
@@ -13,6 +14,7 @@ import {
   type PriceProvider,
   type PriceQuote,
   type PriceRef,
+  type ProviderContext,
 } from '../types';
 
 /**
@@ -279,6 +281,64 @@ function toVendorKey(ref: PriceRef, namespace: string): string | null {
     return NATIVE_REF_BY_CHAIN_ID[ref.chainId] ?? null;
   }
   return `${namespace}:${ref.contractAddress}`;
+}
+
+/**
+ * Prices for raw vendor refs (`coingecko:bitcoin`), for manual entries.
+ *
+ * The chain-based `fetchPrices` above cannot answer this: it takes EVM
+ * chain+address refs and derives passthrough ids internally, for natives alone
+ * — review round 16 caught the plan assuming otherwise. This is the seam that
+ * had to be built: same endpoint, same schema, same quote shape, so staleness
+ * and confidence flags mean exactly what they mean everywhere else.
+ *
+ * Refs that resolve to nothing are simply absent from the map — an unpriced
+ * entry is the honest rendering of a typo (round 16 cut save-time validation).
+ */
+export async function fetchManualRefPrices(input: {
+  refs: readonly string[];
+  context: ProviderContext;
+}): Promise<ReadonlyMap<string, PriceQuote>> {
+  const { refs, context } = input;
+  const quotes = new Map<string, PriceQuote>();
+
+  const wanted = [...new Set(refs.filter((ref) => MANUAL_PRICE_REF_PATTERN.test(ref)))];
+  if (wanted.length === 0 || context.deadline.hasExpired()) {
+    return quotes;
+  }
+
+  for (const batch of chunk(wanted, REFS_PER_REQUEST)) {
+    try {
+      const response = await fetchJson({
+        url: `${BASE_URL}/${batch.map(encodeURIComponent).join(',')}`,
+        label: BASE_URL,
+        schema: responseSchema,
+        providerId: PROVIDER_ID,
+        context,
+      });
+
+      for (const [vendorKey, coin] of Object.entries(response.coins)) {
+        if (coin.price <= 0) {
+          continue;
+        }
+        quotes.set(vendorKey.toLowerCase(), {
+          priceUsd: numberToDecimalString(coin.price),
+          updatedAt: toIsoTimestamp(coin.timestamp),
+          confidence: typeof coin.confidence === 'number' ? coin.confidence : null,
+        });
+      }
+    } catch (error) {
+      // A failed batch means unpriced rows on a page the owner is looking at,
+      // which is its own signal; nothing here is summed into a chain total.
+      context.logger.warn('prices.manual_batch_failed', {
+        providerId: PROVIDER_ID,
+        batchSize: batch.length,
+        ...describeError(error),
+      });
+    }
+  }
+
+  return quotes;
 }
 
 /**

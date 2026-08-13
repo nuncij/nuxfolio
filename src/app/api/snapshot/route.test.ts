@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -8,6 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const KEY = 'correct-horse-battery-staple';
+
+// Each test resets the module graph, and importing the route re-parses all
+// eight bundled token lists through zod — seconds of work the default 5 s
+// timeout no longer covers since the 2026-08-12 chains landed.
+vi.setConfig({ testTimeout: 20_000 });
 
 async function loadRoute(env: Record<string, string> = {}) {
   vi.resetModules();
@@ -21,13 +30,21 @@ function request(headers: Record<string, string> = {}): Request {
   return new Request('https://nuxfolio.test/api/snapshot', { method: 'POST', headers });
 }
 
+let dir: string;
+
 beforeEach(() => {
+  // A real directory even for the auth tests: the route now opens the store
+  // whenever a run happens, because the manual pseudo-row is independent of the
+  // wallet list (round 16), and the default data dir must not appear in the repo.
+  dir = mkdtempSync(join(tmpdir(), 'nuxfolio-snapshot-'));
+  vi.stubEnv('NUXFOLIO_DATA_DIR', dir);
   vi.stubEnv('LOG_LEVEL', 'error');
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
+  rmSync(dir, { recursive: true, force: true });
 });
 
 describe('POST /api/snapshot', () => {
@@ -67,6 +84,8 @@ describe('POST /api/snapshot', () => {
     const response = await POST(request({ 'x-snapshot-key': KEY }));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ captured: 0, skipped: 0 });
+    // manual: 'none' — the pseudo-row runs even with zero wallets tracked, and
+    // with zero entries it records nothing (round 16).
+    expect(await response.json()).toEqual({ captured: 0, skipped: 0, manual: 'none' });
   });
 });
