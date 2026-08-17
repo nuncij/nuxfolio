@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/optimistic-ethereum/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "93.1.0",
-  "generatedAt": "2026-08-10T04:43:17.397Z",
+  "sourceVersion": "93.2.0",
+  "generatedAt": "2026-08-17T03:55:07.574Z",
   "chainId": 10,
   "tokens": [
     {"address":"0x135c78D7F52Aab6e9f17BcF4A9e8627AA233D050","name":"BOO","symbol":"$BOO","decimals":18},
@@ -128,6 +128,7 @@
     {"address":"0xca5921DF65E2e1b0B98Ae91c0187BA80D4124898","name":"EtherFi Liquid Reserve","symbol":"LIQUIDRESERVE","decimals":18},
     {"address":"0xc40F949F8a4e094D1b49a23ea9241D289B7b2819","name":"Liquity USD","symbol":"LUSD","decimals":18},
     {"address":"0xDd462e9399624DFCF73018793BD50a7ef47940b9","name":"Meeds DAO","symbol":"MEED","decimals":18},
+    {"address":"0x1Eaf7cceAA5DC6d605760718722fbcC58579b3Ff","name":"Midas Fasanara Global Open","symbol":"MGLO","decimals":18},
     {"address":"0xB153FB3d196A8eB25522705560ac152eeEc57901","name":"Magic Internet Money (Optimism)","symbol":"MIM","decimals":18},
     {"address":"0xdFA46478F9e5EA86d57387849598dbFB2e964b02","name":"MAI (Optimism)","symbol":"MIMATIC","decimals":18},
     {"address":"0xc04Fb38f10AD352c5f16Bd4546F7456E7f1A2D9e","name":"Minato","symbol":"MNTO","decimals":18},

@@ -3,7 +3,7 @@
   "source": "https://tokens.coingecko.com/xdai/all.json",
   "sourceName": "CoinGecko",
   "sourceVersion": "16.1.0",
-  "generatedAt": "2026-08-12T11:11:39.978Z",
+  "generatedAt": "2026-08-17T03:55:07.870Z",
   "chainId": 100,
   "tokens": [
     {"address":"0xd0Dd6cEF72143E22cCED4867eb0d5F2328715533","name":"Aave v3 DAI","symbol":"ADAI","decimals":18},
