@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/polygon-pos/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "480.0.0",
-  "generatedAt": "2026-08-17T03:55:07.727Z",
+  "sourceVersion": "480.0.1",
+  "generatedAt": "2026-08-24T03:58:35.222Z",
   "chainId": 137,
   "tokens": [
     {"address":"0x440017A1b021006d556d7fc06A54c32E42Eb745B","name":"Graphite Network","symbol":"@G","decimals":18},

@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/arbitrum-one/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "345.0.0",
-  "generatedAt": "2026-08-17T03:55:07.542Z",
+  "sourceVersion": "345.1.1",
+  "generatedAt": "2026-08-24T03:58:35.077Z",
   "chainId": 42161,
   "tokens": [
     {"address":"0x440017A1b021006d556d7fc06A54c32E42Eb745B","name":"Graphite Network","symbol":"@G","decimals":18},
@@ -974,6 +974,7 @@
     {"address":"0x1717D8Be2Bcb27f4E8f36c817088Fa6a2c0b3B30","name":"Wrapped McDonald's xStock","symbol":"WMCDX","decimals":18},
     {"address":"0x02C1b10e5329c4502469396B2ce9f200E60b4a77","name":"Wrapped Medtronic xStock","symbol":"WMDTX","decimals":18},
     {"address":"0xECf2ADafF1De8A512f6e8bfe67a2C836EDb25Da3","name":"Wonderful Memories","symbol":"WMEMO","decimals":18},
+    {"address":"0x4E41a262cAA93C6575d336E0a4eb79f3c67caa06","name":"Wrapped Meta xStock","symbol":"WMETAX","decimals":18},
     {"address":"0x4728E48c2C201E32fe210AaB68A71E419FEAc74a","name":"Wrapped Merck xStock","symbol":"WMRKX","decimals":18},
     {"address":"0x0d6fce45796D5c00689c0916b976645a0FF1F0cE","name":"Wrapped Marvell xStock","symbol":"WMRVLX","decimals":18},
     {"address":"0x63Ad27614231767C8C489745B9145272De50D09b","name":"Wrapped Microsoft xStock","symbol":"WMSFTX","decimals":18},
