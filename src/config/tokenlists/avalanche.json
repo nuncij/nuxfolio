@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/avalanche/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "213.1.0",
-  "generatedAt": "2026-08-24T03:58:35.251Z",
+  "sourceVersion": "213.2.1",
+  "generatedAt": "2026-08-31T09:32:56.305Z",
   "chainId": 43114,
   "tokens": [
     {"address":"0x46B9144771Cb3195D66e4EDA643a7493fADCAF9D","name":"BloodLoop","symbol":"$BLS","decimals":18},
@@ -612,6 +612,7 @@
     {"address":"0xB9ED2ebE38F0DAaDDf276908d79347525b84fa31","name":"Tidal Trust II Defiance Oil Enhanced Options Income ETF (Din","symbol":"USOY","decimals":18},
     {"address":"0xb599c3590F42f8F995ECfa0f85D2980B76862fc1","name":"TerraUSD (Wormhole)","symbol":"UST","decimals":6},
     {"address":"0xb0a8E082E5f8d2a04e74372c1bE47737d85A0E73","name":"Atlas USV","symbol":"USV","decimals":9},
+    {"address":"0xBA515304d8153c4b162dC79f867E152DF9c127eb","name":"Unity","symbol":"UTY","decimals":18},
     {"address":"0xe2Dc24F54ee2100274b77E3c41d464A556a0ec6B","name":"Visa (Dinari Tokenized Stock)","symbol":"V","decimals":18},
     {"address":"0x7bddaF6DbAB30224AA2116c4291521C7a60D5f55","name":"VAPE","symbol":"VAPE","decimals":18},
     {"address":"0x7F4546eF315Efc65336187Fe3765ea779Ac90183","name":"VanEck Treasury Fund","symbol":"VBILL","decimals":6},
