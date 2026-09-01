@@ -1,4 +1,4 @@
-import { Decimal } from 'decimal.js';
+import { Money } from './money';
 
 import type { PortfolioAsset } from './portfolio';
 import type { ProtocolAccount } from './protocolAccount';
@@ -96,7 +96,7 @@ export function computeNetOfDebt(input: {
     counted.set(`${asset.chainId}:${asset.contractAddress.toLowerCase()}`, asset.valueUsd);
   }
 
-  let net = new Decimal(totalValueUsd);
+  let net = new Money(totalValueUsd);
 
   for (const account of engaged) {
     for (const position of account.positions) {
@@ -114,5 +114,5 @@ export function computeNetOfDebt(input: {
 }
 
 function isPositive(value: string | null): boolean {
-  return value !== null && new Decimal(value).greaterThan(0);
+  return value !== null && new Money(value).greaterThan(0);
 }

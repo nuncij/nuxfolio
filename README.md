@@ -70,7 +70,7 @@ follow the example wallet link on the landing page.
 **No API key is needed.** With no configuration at all, Nuxfolio reads real
 balances from public RPC endpoints on eight networks and real prices from a public
 market-data API. What that costs you is coverage: without an indexer key it
-checks bundled token lists — roughly 12,000 tokens across the five chains — and it says
+checks bundled token lists — roughly 16,800 tokens across the eight chains — and it says
 so on every response.
 
 Two optional free keys each add something:
@@ -302,7 +302,7 @@ callers share one bucket with a higher ceiling. See ADR-008.
 
 ## Known limitations
 
-1. Without `ALCHEMY_API_KEY`, only bundled-list tokens are found — roughly 14,000 across
+1. Without `ALCHEMY_API_KEY`, only bundled-list tokens are found — roughly 16,800 across
    eight networks. Surfaced in the UI on every request.
 2. The cache and rate limiter are in-process, so they are per-instance. Correct
    for a single node; a shared store is needed before scaling horizontally.

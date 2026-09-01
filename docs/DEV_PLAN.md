@@ -1,11 +1,13 @@
 # Nuxfolio — Development Plan
 
-Status: checkpoint after milestone 2, and the plan forward.
-Written 2026-07-30, last revised 2026-07-31. Companion documents:
-`IMPLEMENTATION_PLAN.md` (what was built and why), `M2_PLAN.md` (milestone 2's
-per-item specifications), `M2-2_PLAN.md` (the price cross-check, as specified and
-as delivered), `DECISIONS.md` (ADR-001…026), `PROVIDERS.md`, `REVIEW_LOG.md`
-(twelve independent review rounds).
+Status: all planned milestones (1-5) complete and live; manual entries and
+eight networks shipped August 2026. Part 1 below is the milestone-2 checkpoint
+as written 2026-07-30 (kept as the historical record; its totals are of that
+date) - current totals follow each milestone section. Companion documents:
+`IMPLEMENTATION_PLAN.md`, the per-milestone plans (`M2_PLAN.md`,
+`M2-2_PLAN.md`, `M4_PLAN.md`, `M5_PLAN.md`, `MANUAL_ENTRIES_PLAN.md`),
+`DECISIONS.md` (ADR-001…033), `PROVIDERS.md`, `REVIEW_LOG.md` (seventeen
+independent review rounds).
 
 ---
 
@@ -56,15 +58,15 @@ GitHub.
 | Palette contrast guard — parses `globals.css`, asserts WCAG AA | ✅ done           |
 | E2E against a production build instead of `next dev`           | ✅ done (ADR-017) |
 
-Totals now: **884 unit tests across 42 files + 31 E2E scenarios**, `pnpm verify`
-green. 26 ADRs, 12 independent review rounds.
+Totals as of 2026-08-13: **1,131 unit tests across 61 files + 32 E2E
+scenarios**, `pnpm verify` green. 33 ADRs, 17 independent review rounds.
 
 **Working today, with no API key and no configuration:**
 
 - Enter any public EVM address → portfolio across **eight EVM networks** (Ethereum, Base, Arbitrum One, OP
   Mainnet, BNB Smart Chain — and, since 2026-08-12, Polygon PoS, Avalanche
   C-Chain and Gnosis), or any single network.
-- 14,007 bundled tokens checked via Multicall3 (500 calls/batch, 4 in flight);
+- ~16,813 bundled tokens (weekly-refreshed; count as of 2026-09-01) checked via Multicall3 (500 calls/batch, 4 in flight);
   a full eight-chain scan takes ~2 s cold, ~0 s cached (60 s TTL).
 - Prices from DefiLlama with per-quote confidence and staleness flags
   (`ok` / `low-confidence` / `stale` / `unknown-age`) — flagged quotes are kept
@@ -98,7 +100,7 @@ the agreement, not the balance, is the claim.
 7 agreed, the widest gap 0.50 % on syrupUSDC. Total unaffected. 8 requests for a
 full five-network load.
 
-**Quality state:** 884 tests across 42 files plus 31 end-to-end scenarios;
+**Quality state (at this 2026-07-31 checkpoint — current totals above):** 884 tests across 42 files plus 31 end-to-end scenarios;
 format, lint, type check and production build all pass (`pnpm verify`; E2E runs
 separately as `pnpm test:e2e`). Seven rounds of independent Codex review, 62 findings
 in total: 58 adopted at least in part, six rejected with a recorded reason, plus

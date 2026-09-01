@@ -18,6 +18,7 @@ import {
 } from '@/domain/bundle';
 import { BUNDLE_MAX_MEMBERS, type BundleRequest } from '@/domain/bundleRequest';
 import { DEFAULT_SORT, type AssetSort } from '@/domain/assetSort';
+import { sumMoney } from '@/domain/money';
 import { flattenAggregateAssets, withCrossChainShares } from '@/domain/normalize';
 import { portfolioPath } from '@/domain/portfolioPath';
 import type { PublicChainInfo } from '@/config/chains';
@@ -33,6 +34,8 @@ import {
   subscribeToCurrency,
 } from './CurrencyToggle';
 import { DisplayProvider, useMoney } from './DisplayProvider';
+import Link from 'next/link';
+
 import { PortfolioSkeleton } from './PortfolioSkeleton';
 import { WarningPanel } from './WarningPanel';
 
@@ -124,6 +127,26 @@ export function BundleView({
     return () => controller.abort();
   }, [load]);
 
+  // The owner's reported balances, shown beside the bundle rather than inside it
+  // (MANUAL_ENTRIES_PLAN.md §6.1): the bundle total stays purely chain-verified,
+  // and the combined figure below it is labelled for what it mixes. A failed
+  // read renders nothing — this line is an extra, never a gap in the bundle.
+  const [reported, setReported] = useState<{ total: string | null; count: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/manual')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { entries?: readonly unknown[]; totalValueUsd?: string | null } | null) => {
+        if (!cancelled && body !== null && (body.entries?.length ?? 0) > 0) {
+          setReported({ total: body.totalValueUsd ?? null, count: body.entries?.length ?? 0 });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const progress = selectBundleProgress(state);
   const totals = selectBundleTotals(state);
   const conclusion = selectBundleConclusion(state);
@@ -172,6 +195,7 @@ export function BundleView({
             <BundleSummary
               totals={totals}
               progress={progress}
+              reported={reported}
               conversion={conversionNote({ currency, fxRate })}
               fxUnavailable={!canShowEur(fxRate) && progress.readable > 1}
             />
@@ -245,11 +269,13 @@ function RequestNotices({ request }: { request: BundleRequest }) {
 function BundleSummary({
   totals,
   progress,
+  reported,
   conversion,
   fxUnavailable,
 }: {
   totals: ReturnType<typeof selectBundleTotals>;
   progress: ReturnType<typeof selectBundleProgress>;
+  reported: { total: string | null; count: number } | null;
   conversion: string | null;
   fxUnavailable: boolean;
 }) {
@@ -278,9 +304,36 @@ function BundleSummary({
         </p>
       </div>
 
+      {reported !== null ? (
+        <div className="mt-3 rounded-xl border border-dashed border-line-strong bg-surface p-4">
+          <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">
+            With reported balances
+          </p>
+          <p className="numeric mt-2 text-2xl font-semibold text-ink">
+            {money(
+              sumMoney(
+                [totals.totalValueUsd, reported.total].filter(
+                  (value): value is string => value !== null,
+                ),
+              ),
+            )}
+          </p>
+          <p className="mt-1 text-xs text-ink-subtle">
+            The figure above plus{' '}
+            <Link href="/manual" className="text-accent hover:underline">
+              {reported.count} balance{reported.count === 1 ? '' : 's'} you reported
+            </Link>{' '}
+            ({money(reported.total)}) — quantities yours, verified by nobody.
+          </p>
+        </div>
+      ) : null}
+
       <p className="mt-3 text-xs text-ink-subtle">
         Values are estimates derived from public market data and can differ from what you would
-        actually receive. Nuxfolio reads public chain data only.
+        actually receive.{' '}
+        {reported === null
+          ? 'Nuxfolio reads public chain data only.'
+          : 'The main figure is public chain data only; the combined one includes balances you reported yourself.'}
         {conversion === null ? null : ` ${conversion}`}
         {fxUnavailable
           ? ' Euro conversion is unavailable for this bundle because the wallets did not return the same reference rate.'

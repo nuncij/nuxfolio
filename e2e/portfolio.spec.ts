@@ -477,6 +477,14 @@ test('totals several wallets, and names the one it could not read', async ({ pag
   const summary = page.getByRole('region', { name: 'Bundle summary' });
   // 1,000 + 250. The failed wallet contributes nothing and is not counted as zero.
   await expect(summary).toContainText('$1,250.00');
+
+  // The reported balances ($30,000 in the fixture) appear only in the labelled
+  // combined figure — the main total above stays purely chain-verified, and the
+  // honesty sentence names what the combined one mixes.
+  await expect(summary).toContainText('With reported balances');
+  await expect(summary).toContainText('$31,250.00');
+  await expect(summary).toContainText('verified by nobody');
+  await expect(summary).toContainText('includes balances you reported yourself');
   // "readable", never "settled": the failed wallet settled and is not covered.
   await expect(summary).toContainText('2 of 3 wallets readable');
   await expect(summary).toContainText('1 unavailable and not counted');

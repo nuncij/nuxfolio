@@ -60,7 +60,14 @@ export function WarningPanel({ warnings }: { warnings: readonly PortfolioWarning
 
         <ul className="space-y-1.5 px-4 pb-4">
           {warnings.map((warning) => (
-            <li key={warning.code} className="flex gap-2 text-sm text-ink-muted">
+            // Code AND message: a bundle carries the same code once per distinct
+            // message (selectBundleWarnings keeps them apart on purpose), and a
+            // code-only key made React warn about duplicates and permitted it to
+            // drop rows — found in the browser console, 2026-09-01.
+            <li
+              key={`${warning.code}::${warning.message}`}
+              className="flex gap-2 text-sm text-ink-muted"
+            >
               <span
                 aria-hidden="true"
                 className="mt-1.5 size-1.5 shrink-0 rounded-full bg-caution"

@@ -1,4 +1,4 @@
-import { Decimal } from 'decimal.js';
+import { formatBaseUnits, Money } from './money';
 
 import type { ProtocolReadStatus } from './portfolio';
 import type { ProtocolPosition } from './protocolPosition';
@@ -232,7 +232,10 @@ export function summarizeAccounts(accounts: readonly ProtocolAccount[]): {
 }
 
 function scale(raw: string, decimals: number): string {
-  return new Decimal(raw).dividedBy(new Decimal(10).pow(decimals)).toFixed();
+  // Exact, not a division: decimal.js rounds a quotient to its precision, and this
+  // file ran at the library default of 20 significant digits until 2026-08-13 (the
+  // round-15 follow-up). formatBaseUnits moves the decimal point and nothing else.
+  return formatBaseUnits(BigInt(raw), decimals);
 }
 
 function sumDecimals(values: readonly (string | null)[]): string | null {
@@ -240,13 +243,13 @@ function sumDecimals(values: readonly (string | null)[]): string | null {
   if (present.length === 0) {
     return null;
   }
-  return present.reduce((total, value) => new Decimal(total).plus(value).toFixed(), '0');
+  return present.reduce((total, value) => new Money(total).plus(value).toFixed(), '0');
 }
 
 function isPositive(value: string | null): boolean {
-  return value !== null && new Decimal(value).greaterThan(0);
+  return value !== null && new Money(value).greaterThan(0);
 }
 
 function lt(a: string, b: string): boolean {
-  return new Decimal(a).lessThan(b);
+  return new Money(a).lessThan(b);
 }

@@ -1,4 +1,4 @@
-import { Decimal } from 'decimal.js';
+import { Money } from './money';
 
 import { formatBaseUnits } from './money';
 
@@ -123,5 +123,5 @@ function scale(baseUnits: bigint, decimals: number): string {
 
 function isZero(value: string): boolean {
   // `Decimal` is exact here — it is only `dividedBy` above that rounds.
-  return new Decimal(value).isZero();
+  return new Money(value).isZero();
 }
