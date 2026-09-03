@@ -113,7 +113,7 @@ row is measured in megabytes.
 The roadmap's second line — today's holdings valued at historical prices — answers a
 different question ("what would today's holdings have been worth then?") and is wrong for
 every day the balances differed. It is the larger half of M4-3 and the half that can
-mislead. It gets its own decision once there is a real chart to compare it against.
+mislead. It got its decision on 2026-09-03, against 24 days of real readings: declined, ADR-034 — the reconstruction was ~9 % high for a wallet whose holdings had changed and exact for one that had not, and nothing in it could tell the two apart.
 
 The empty state says history starts when tracking does, and every deploy starts one
 snapshot run — joining the list means changing the environment, which means deploying —

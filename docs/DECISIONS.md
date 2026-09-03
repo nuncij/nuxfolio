@@ -2037,3 +2037,48 @@ prediction in ADR-002 was written before the box existed; the measurement outran
 - Backup is `cp` of one file; a restore must be performed once before M4 is called done.
 - If a second writer or a second instance ever appears (the ADR-007 trigger), that is
   the moment to revisit — the store is behind `SnapshotStore`, five functions wide.
+
+---
+
+## ADR-034 — No reconstructed history line: measured, and declined
+
+**Context.** M4-3 in the roadmap asked for two chart series: real daily snapshots
+(sparse at first) and a _reconstruction_ — today's holdings valued at historical prices
+(dense, "but wrong whenever balances changed; labelled as such"). `M4_PLAN.md` §5 shipped
+only the first and deferred the second until a real chart existed to compare against.
+
+**The comparison, 2026-09-03**, after 24 consecutive recorded days for two wallets. For
+each of six days the Ethereum-leg reconstruction (today's priced holdings × DefiLlama's
+historical price for that day) was set against the recorded total:
+
+| Day        | Wallet A reconstructed vs recorded | Wallet B reconstructed vs recorded |
+| ---------- | ---------------------------------- | ---------------------------------- |
+| 2026-08-12 | **+8.39 %**                        | −0.57 %                            |
+| 2026-08-16 | **+9.62 %**                        | −0.03 %                            |
+| 2026-08-20 | **+9.94 %**                        | 0.00 %                             |
+| 2026-08-24 | +0.10 %                            | +0.11 %                            |
+| 2026-08-28 | −0.06 %                            | 0.00 %                             |
+| 2026-09-02 | −0.49 %                            | −0.07 %                            |
+
+Wallet A's holdings changed around 2026-08-21/23; for every day before that, the
+reconstruction claims the wallet was worth about nine per cent more than it was. Wallet
+B stood still and the reconstruction is exact. **Nothing in the reconstruction
+distinguishes the two.** The divergence is measurable only because real readings exist
+— which is the same reason the real readings make the reconstruction unnecessary.
+
+**Decision.** No reconstruction series. The chart draws recorded readings only, and the
+history for a wallet starts on the day it was first tracked. The roadmap's "labelled as
+such" was the plan's own hedge, and the measurement shows what the label would have to
+say: _this line may be wrong by an unknowable amount for an unknowable stretch of days_ —
+which is not a caveat, it is a reason not to draw the line.
+
+**Consequences.**
+
+- Backfilling a wallet's history before its first snapshot is not possible, honestly,
+  from prices alone. The cost is one gap per wallet, once; the alternative was a dense
+  line that reads as data and is not.
+- The 24 h / 7 d change column is unaffected: it prices _today's_ balance at two
+  instants and says so, a one-day claim about a holding known to exist now — not a
+  claim about what the wallet held a month ago.
+- The measurement script is three fetches and a division; the decision can be re-run
+  against any wallet in a minute if someone wants to see the shape of their own gap.
