@@ -3,7 +3,7 @@
   "source": "https://tokens.coingecko.com/polygon-pos/all.json",
   "sourceName": "CoinGecko",
   "sourceVersion": "481.0.0",
-  "generatedAt": "2026-08-31T09:32:56.253Z",
+  "generatedAt": "2026-09-07T08:06:59.376Z",
   "chainId": 137,
   "tokens": [
     {"address":"0x440017A1b021006d556d7fc06A54c32E42Eb745B","name":"Graphite Network","symbol":"@G","decimals":18},

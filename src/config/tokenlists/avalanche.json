@@ -3,7 +3,7 @@
   "source": "https://tokens.coingecko.com/avalanche/all.json",
   "sourceName": "CoinGecko",
   "sourceVersion": "213.2.1",
-  "generatedAt": "2026-08-31T09:32:56.305Z",
+  "generatedAt": "2026-09-07T08:06:59.414Z",
   "chainId": 43114,
   "tokens": [
     {"address":"0x46B9144771Cb3195D66e4EDA643a7493fADCAF9D","name":"BloodLoop","symbol":"$BLS","decimals":18},
