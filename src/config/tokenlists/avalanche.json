@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/avalanche/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "213.2.1",
-  "generatedAt": "2026-09-14T08:44:27.520Z",
+  "sourceVersion": "213.3.0",
+  "generatedAt": "2026-09-21T08:46:07.784Z",
   "chainId": 43114,
   "tokens": [
     {"address":"0x46B9144771Cb3195D66e4EDA643a7493fADCAF9D","name":"BloodLoop","symbol":"$BLS","decimals":18},
@@ -516,6 +516,7 @@
     {"address":"0xdc9dCd3bf257705A6B414eD4592Af7d42ae35201","name":"Snap (Dinari Tokenized Stock)","symbol":"SNAP","decimals":18},
     {"address":"0x636562a564d9a925f680c4a7008f4e39DD441F0B","name":"Snowflake (Dinari Tokenized Stock)","symbol":"SNOW","decimals":18},
     {"address":"0xBeC243C995409E6520D7C41E404da5dEba4b209B","name":"Synthetix","symbol":"SNX","decimals":18},
+    {"address":"0x390ceed555905ec225Da330A188EA04e85570f00","name":"SODAX","symbol":"SODA","decimals":18},
     {"address":"0x634608ed64c61CA9e741F8095193c0bFa0FA19Cc","name":"Wormhole Bridged SOL","symbol":"SOL","decimals":18},
     {"address":"0xae6241f806F0e1Af82bf9B16B83447Ab1f62283E","name":"Solar Dex","symbol":"SOLAR","decimals":18},
     {"address":"0xbc78D84Ba0c46dFe32cf2895a19939c86b81a777","name":"Solv Protocol BTC","symbol":"SOLVBTC","decimals":18},

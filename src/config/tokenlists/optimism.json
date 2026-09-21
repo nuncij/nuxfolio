@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/optimistic-ethereum/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "94.0.0",
-  "generatedAt": "2026-09-14T08:44:27.353Z",
+  "sourceVersion": "94.1.0",
+  "generatedAt": "2026-09-21T08:46:07.627Z",
   "chainId": 10,
   "tokens": [
     {"address":"0x135c78D7F52Aab6e9f17BcF4A9e8627AA233D050","name":"BOO","symbol":"$BOO","decimals":18},
@@ -684,6 +684,7 @@
     {"address":"0x0D2566eAD867F4883Cbd14B5e1Df4Bca17b30C77","name":"Synopsys xStock","symbol":"SNPSX","decimals":18},
     {"address":"0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4","name":"Synthetix","symbol":"SNX","decimals":18},
     {"address":"0xdE7367e2fd16A1b48e1db160104aDa7b0F990171","name":"TD Synnex xStock","symbol":"SNXX","decimals":18},
+    {"address":"0x1f22279C89B213944b7Ea41daCB0a868DdCDFd13","name":"SODAX","symbol":"SODA","decimals":18},
     {"address":"0xcf8e8E4d348502D5Ab212cEAAa6062a6DE1a53e2","name":"SoFi Technologies xStock","symbol":"SOFIX","decimals":18},
     {"address":"0x180c8eB36138CdAA75D985D756005cD8344a042B","name":"Solstice Advanced Materials xStock","symbol":"SOLSX","decimals":18},
     {"address":"0x2e0fb57Bf21cc5e32D3C72f7Fdd4D0D23CA0f5F3","name":"Southern xStock","symbol":"SOX","decimals":18},
