@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/avalanche/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "213.3.0",
-  "generatedAt": "2026-09-21T08:46:07.784Z",
+  "sourceVersion": "213.4.1",
+  "generatedAt": "2026-09-28T09:34:35.774Z",
   "chainId": 43114,
   "tokens": [
     {"address":"0x46B9144771Cb3195D66e4EDA643a7493fADCAF9D","name":"BloodLoop","symbol":"$BLS","decimals":18},
@@ -551,6 +551,7 @@
     {"address":"0xA940Cad10Eb6769Bf09bFa569b5712690DB3D446","name":"Strategy Strife Preferred (Dinari Tokenized Stock)","symbol":"STRF","decimals":18},
     {"address":"0xBbD1D186b035A28c4a6dcaF192a4c61F9a74BCe1","name":"Strategy Strike Preferred (Dinari Tokenized Stock)","symbol":"STRK","decimals":18},
     {"address":"0x700E4E3fB42ea7E08376113532E86FD3128532ff","name":"State Street (Dinari Tokenized Stock)","symbol":"STT","decimals":18},
+    {"address":"0xE508Ff190Ce1D94EDd1A28256eaeedFAB7Cc2222","name":"summitpad.fun","symbol":"SUMMIT","decimals":18},
     {"address":"0x09Fa58228bB791ea355c90DA1e4783452b9Bd8C3","name":"SuperVerse","symbol":"SUPER","decimals":18},
     {"address":"0x5fC17416925789E0852FBFcd81c490ca4abc51F9","name":"inSure DeFi","symbol":"SURE","decimals":18},
     {"address":"0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2","name":"Ethena Staked USDe","symbol":"SUSDE","decimals":18},
