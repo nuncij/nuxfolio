@@ -2,8 +2,8 @@
   "$comment": "GENERATED FILE - do not edit by hand. Run `pnpm tokens:generate` to refresh. See docs/DECISIONS.md, ADR-006 and ADR-012.",
   "source": "https://tokens.coingecko.com/optimistic-ethereum/all.json",
   "sourceName": "CoinGecko",
-  "sourceVersion": "94.3.0",
-  "generatedAt": "2026-09-28T09:34:35.431Z",
+  "sourceVersion": "95.0.0",
+  "generatedAt": "2026-10-26T08:42:35.551Z",
   "chainId": 10,
   "tokens": [
     {"address":"0x135c78D7F52Aab6e9f17BcF4A9e8627AA233D050","name":"BOO","symbol":"$BOO","decimals":18},
@@ -742,7 +742,6 @@
     {"address":"0x7c7445A40926152B8d24aBDb9020e219d3D3380a","name":"Strive, Inc. Series A Preferred xStock","symbol":"SATAX","decimals":18},
     {"address":"0xC26bc7f2fcC708d6678527672b65815AE83D8b05","name":"SBA Communications xStock","symbol":"SBACX","decimals":18},
     {"address":"0x5667C2D45ACb2933CE129B53615aAF17C69f262c","name":"Starbucks xStock","symbol":"SBUXX","decimals":18},
-    {"address":"0x0F13fC8a93aB8edC9Fde0a1E19aAC693161599A5","name":"SecureChain AI","symbol":"SCAI","decimals":18},
     {"address":"0x59fb22B2eE80D5630DB4aeBb80Fac4a9A5fb778C","name":"Southern Copper xStock","symbol":"SCCOX","decimals":18},
     {"address":"0x0bF06F8eE1550352417DF572aE66D821d3fDb8E5","name":"Charles Schwab xStock","symbol":"SCHWX","decimals":18},
     {"address":"0x93132A761807f8DBD5D8C9b6d31f544d3dEb8e1d","name":"Service Corp International xStock","symbol":"SCIX","decimals":18},
